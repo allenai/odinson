@@ -1,4 +1,5 @@
 # This build uses SBT to create jars.
+# This specific JDK version is important.  Both 8u212 and 11 cause compilation errors.
 FROM openjdk:8u212-jdk-stretch as builder
 
 # Install sbt
