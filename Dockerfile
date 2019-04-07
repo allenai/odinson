@@ -20,4 +20,4 @@ FROM openjdk:8u212-jdk-stretch
 
 WORKDIR /local
 COPY --from=builder /local/backend/target/universal/stage/ /local
-ENTRYPOINT ["/local/bin/odinson"]
+ENTRYPOINT ["/local/bin/odinson-rest-api"]

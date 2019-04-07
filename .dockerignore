@@ -1,5 +1,7 @@
+.gitignore
+.git
 Dockerfile
-target/
-project/target/
-backend/target/
-**/target/
+target
+project/target
+backend/target
+**/target
