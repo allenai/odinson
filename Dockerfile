@@ -28,8 +28,10 @@ FROM openjdk:8u212-jdk-stretch
 
 WORKDIR /local
 RUN mkdir /local/data
-RUN curl https://storage.googleapis.com/ai2i/SPIKE/datasets_experimental/tacred-train-odinson-index.tar.gz | tar -C /local/data -xzv
 
+# by default we build an image with tacred. To build with KBP pass --build-arg user=kbp-odinson-index-<date> to docker build.
+ARG dataset_name=tacred-train-odinson-index
+RUN curl https://storage.googleapis.com/ai2i/SPIKE/datasets_experimental/${dataset_name}.tar.gz | tar -C /local/data -xzv
 COPY --from=builder /local/backend/target/universal/stage/ /local
 
 ENTRYPOINT ["/local/bin/odinson-rest-api"]
