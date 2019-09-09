@@ -136,11 +136,17 @@ class ExtractorEngine(
   }
 
   def getTokens(scoreDoc: OdinsonScoreDoc): Array[String] = {
-    getTokens(scoreDoc.doc)
+    // TODO by default this should use the field that was stored for display
+    // IMHO it should be `raw`, but it shouldn't be hardcoded
+    getTokens(scoreDoc.doc, "raw")
   }
 
-  def getTokens(docID: Int): Array[String] = {
-    TokenStreamUtils.getTokens(docID, "raw", indexSearcher, analyzer)
+  def getTokens(scoreDoc: OdinsonScoreDoc, fieldName: String): Array[String] = {
+    getTokens(scoreDoc.doc, fieldName)
+  }
+
+  def getTokens(docID: Int, fieldName: String): Array[String] = {
+    TokenStreamUtils.getTokens(docID, fieldName, indexSearcher, analyzer)
   }
 
 }
@@ -160,7 +166,7 @@ object ExtractorEngine {
     val indexDir = config[Path]("indexDir")
     val indexReader = DirectoryReader.open(FSDirectory.open(indexDir))
     val indexSearcher = new OdinsonIndexSearcher(indexReader)
-    val compiler = QueryCompiler.fromConfig(config[Config]("compiler"))
+    val compiler = QueryCompiler.fromConfig(config)
     val jdbcUrl = config[String]("state.jdbc.url")
     val state = new State(jdbcUrl)
     state.init()
