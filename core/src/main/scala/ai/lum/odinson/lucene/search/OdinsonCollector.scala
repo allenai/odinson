@@ -101,6 +101,8 @@ class OdinsonCollector(
     val docBase = context.docBase
     val afterDoc = after - context.docBase
 
+    println(f"getLeafCollector docBas:$docBase after:$after afterDoc:$afterDoc")
+
     if (computeTotalHits) {
       TotalHitsCalculatingLeafCollector(docBase, afterDoc)
     } else {
@@ -109,8 +111,12 @@ class OdinsonCollector(
       // based on the docBase of the next reader in line, we might want to skip this entire reader
       // if all the indexes here are before the specified 'after' value
       if (context.parent.isTopLevel && context.parent.leaves().size() > context.ordInParent + 1) {
+
+
         val nextLeafContext = context.parent.leaves().get(context.ordInParent + 1)
-        if (nextLeafContext.docBase >= after + 1) {
+
+        println(f"getLeafCollector.nextLeafContext docBas:${nextLeafContext.docBase}")
+        if (nextLeafContext.docBase <= after + 1) {
           skipEntireSegment = true
         }
       }
