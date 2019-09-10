@@ -29,9 +29,10 @@ FROM openjdk:8u212-jdk-stretch
 WORKDIR /local
 RUN mkdir /local/data
 
-# by default we build an image with tacred. To build with KBP pass --build-arg user=kbp-odinson-index-<date> to docker build.
+# by default we build an image with tacred. To build with KBP pass --build-arg user=kbp-odinson-index-ordered-<date>
+# to docker build.
 ARG dataset_name
-ENV dataset_name ${dataset_name:-tacred-train-odinson-index}
+ENV dataset_name ${dataset_name:-tacred-train-odinson-index-ordered-09092019}
 RUN curl https://storage.googleapis.com/ai2i/SPIKE/${dataset_name}.tar.gz | tar -C /local/data -xzv
 COPY --from=builder /local/backend/target/universal/stage/ /local
 
