@@ -6,7 +6,7 @@ fi
 
 DATASET_NAME=$1
 DATASET_VERSION=$2
-DATASET_URL = https://storage.googleapis.com/ai2i/SPIKE/datasets/${DATASET_NAME}/${DATASET_VERSION}/${DATASET_NAME}-odinson-index.tar.gz
+DATASET_URL=https://storage.googleapis.com/ai2i/SPIKE/datasets/${DATASET_NAME}/${DATASET_VERSION}/${DATASET_NAME}-odinson-index.tar.gz
 
 if [ ! -d /local/data/index ]
 then
