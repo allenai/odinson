@@ -4,12 +4,14 @@ if [ $# -ne 2 ]
     exit 1
 fi
 
-dataset_name=$1
-dataset_version=$2
+DATASET_NAME=$1
+DATASET_VERSION=$2
+DATASET_URL = https://storage.googleapis.com/ai2i/SPIKE/datasets/${DATASET_NAME}/${DATASET_VERSION}/${DATASET_NAME}-odinson-index.tar.gz
 
 if [ ! -d /local/data/index ]
 then
-    curl https://storage.googleapis.com/ai2i/SPIKE/datasets/${dataset_name}/dataset_version/${dataset_name}-odinson-index.tar.gz | tar -C /local/data -xzv
+    echo "Downloading dataset from: ${DATASET_URL}..."
+    curl  ${DATASET_URL} | tar -C /local/data -xzv
 fi
 
 /local/bin/odinson-rest-api
