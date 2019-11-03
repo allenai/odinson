@@ -10,6 +10,7 @@ ENV PATH="/sbt/sbt/bin:${PATH}"
 WORKDIR /local
 COPY build.sbt /local/build.sbt
 COPY project /local/project
+COPY scripts /local/scripts
 COPY backend /local/backend
 COPY extra /local/extra
 COPY core/build.sbt /local/core/build.sbt
@@ -33,7 +34,6 @@ RUN mkdir /local/data
 # to docker build.
 ARG dataset_name
 ENV dataset_name ${dataset_name:-tacred-train-odinson-index-ordered-24092019}
-RUN curl https://storage.googleapis.com/ai2i/SPIKE/${dataset_name}.tar.gz | tar -C /local/data -xzv
 COPY --from=builder /local/backend/target/universal/stage/ /local
 
-ENTRYPOINT ["scripts/startup.sh", ${dataset_name}]
+ENTRYPOINT ["/local/scripts/startup.sh", ${dataset_name}]
