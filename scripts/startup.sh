@@ -10,8 +10,8 @@ DATASET_URL=https://storage.googleapis.com/ai2i/SPIKE/datasets/${DATASET_NAME}/$
 
 if [ ! -d /local/data/index ]
 then
-    echo "Downloading dataset from: ${DATASET_URL}..."
-    curl  ${DATASET_URL} | tar -C /local/data -xzv
+    echo "Downloading dataset from: ${DATASET_URL}..."  
+    curl  ${DATASET_URL} | tar -C /local/data -xzv || exit 1
 fi
 
 /local/bin/odinson-rest-api
