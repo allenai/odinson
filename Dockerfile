@@ -36,4 +36,4 @@ ENV dataset_name ${dataset_name:-tacred-train-odinson-index-ordered-24092019}
 RUN curl https://storage.googleapis.com/ai2i/SPIKE/${dataset_name}.tar.gz | tar -C /local/data -xzv
 COPY --from=builder /local/backend/target/universal/stage/ /local
 
-ENTRYPOINT ["/local/bin/odinson-rest-api"]
+ENTRYPOINT ["scripts/startup.sh", ${dataset_name}]
