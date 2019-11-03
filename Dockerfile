@@ -10,7 +10,6 @@ ENV PATH="/sbt/sbt/bin:${PATH}"
 WORKDIR /local
 COPY build.sbt /local/build.sbt
 COPY project /local/project
-COPY scripts /local/scripts
 COPY backend /local/backend
 COPY extra /local/extra
 COPY core/build.sbt /local/core/build.sbt
@@ -23,6 +22,7 @@ RUN sbt backend/compile
 
 COPY core/src/main/resources /local/core/src/main/resources
 RUN sbt backend/stage
+COPY scripts /local/scripts
 
 # This build copies over the jars and sets up the path to run the application.
 FROM openjdk:8u212-jdk-stretch
@@ -32,8 +32,7 @@ RUN mkdir /local/data
 
 # by default we build an image with tacred. To build with KBP pass --build-arg user=kbp-odinson-index-ordered-24092019
 # to docker build.
-ARG dataset_name
-ENV dataset_name ${dataset_name:-tacred-train-odinson-index-ordered-24092019}
 COPY --from=builder /local/backend/target/universal/stage/ /local
+COPY --from=builder /local/scripts /local/scripts
 
-ENTRYPOINT ["/local/scripts/startup.sh", ${dataset_name}]
+ENTRYPOINT ["/bin/sh", "/local/scripts/startup.sh"]
