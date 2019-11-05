@@ -22,6 +22,7 @@ RUN sbt backend/compile
 
 COPY core/src/main/resources /local/core/src/main/resources
 RUN sbt backend/stage
+COPY scripts /local/scripts
 
 # This build copies over the jars and sets up the path to run the application.
 FROM openjdk:8u212-jdk-stretch
@@ -31,9 +32,7 @@ RUN mkdir /local/data
 
 # by default we build an image with tacred. To build with KBP pass --build-arg user=kbp-odinson-index-ordered-24092019
 # to docker build.
-ARG dataset_name
-ENV dataset_name ${dataset_name:-tacred-train-odinson-index-ordered-24092019}
-RUN curl https://storage.googleapis.com/ai2i/SPIKE/${dataset_name}.tar.gz | tar -C /local/data -xzv
 COPY --from=builder /local/backend/target/universal/stage/ /local
+COPY --from=builder /local/scripts /local/scripts
 
-ENTRYPOINT ["/local/bin/odinson-rest-api"]
+ENTRYPOINT ["/bin/sh", "/local/scripts/startup.sh"]
