@@ -3,9 +3,10 @@ package controllers
 import javax.inject._
 import java.io.File
 import java.nio.file.Path
+
 import scala.util.control.NonFatal
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success, Try }
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success, Try}
 import play.api.http.ContentTypes
 import play.api.libs.json._
 import play.api.mvc._
@@ -13,10 +14,10 @@ import akka.actor._
 import org.apache.commons.lang3.exception.ExceptionUtils
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer
 import org.apache.lucene.search.highlight.TokenSources
+import org.apache.lucene.search._
 import ai.lum.common.ConfigUtils._
 import ai.lum.common.FileUtils._
-import ai.lum.odinson.BuildInfo
-import ai.lum.odinson.ExtractorEngine
+import ai.lum.odinson.{BuildInfo, ExtractionQuery, ExtractorEngine}
 import ai.lum.odinson.digraph.Vocabulary
 import org.apache.lucene.store.FSDirectory
 import ai.lum.odinson.lucene.search.OdinsonScoreDoc
@@ -24,6 +25,8 @@ import ai.lum.odinson.extra.DocUtils
 import ai.lum.odinson.lucene._
 import ai.lum.odinson.lucene.analysis.TokenStreamUtils
 import ai.lum.odinson.utils.ConfigFactory
+import org.apache.lucene.analysis.standard.StandardAnalyzer
+import org.apache.lucene.queryparser.classic.{MultiFieldQueryParser, QueryParser}
 import utils.DocumentMetadata
 
 
@@ -213,8 +216,9 @@ class OdinsonController @Inject() (system: ActorSystem, cc: ControllerComponents
     * @return JSON of matches
     */
   def runQuery(
-    odinsonQuery: String,
+    odinsonQuery: Option[String],
     parentQuery: Option[String],
+    sentenceQuery: Option[String],
     label: Option[String], // FIXME: in the future, this will be decided in the grammar
     commit: Option[Boolean], // FIXME: in the future, this will be decided in the grammar
     prevDoc: Option[Int],
@@ -226,33 +230,36 @@ class OdinsonController @Inject() (system: ActorSystem, cc: ControllerComponents
       try {
         val start = System.currentTimeMillis()
 
-        val results: OdinResults = (prevDoc, prevScore) match {
-          case (Some(doc), Some(score)) =>
-            // continue where we left off
-            parentQuery match {
-              case None => extractorEngine.query(odinsonQuery, pageSize, doc, score)
-              case Some(filter) => extractorEngine.query(odinsonQuery, filter, pageSize, doc, score)
-            }
-          case _ =>
-            // get first page
-            parentQuery match {
-              case None => extractorEngine.query(odinsonQuery, pageSize)
-              case Some(filter) => extractorEngine.query(odinsonQuery, filter, pageSize)
-            }
+
+        var queryBuilder = ExtractionQuery.builder()
+
+        queryBuilder.setOdinsonQuery(odinsonQuery)
+        queryBuilder.setDocumentQuery(parentQuery)
+        queryBuilder.setSentenceQuery(sentenceQuery)
+        queryBuilder.setLimit(pageSize.asInstanceOf[Int])
+        prevDoc.flatMap(doc => prevScore.map(score => (doc, score))).foreach{
+          case (d, s) => queryBuilder.setContinuation(d, s)
         }
+
+        val results: OdinResults = extractorEngine.query(queryBuilder)
         val duration = (System.currentTimeMillis() - start) / 1000f // duration in seconds
 
         // should the results be added to the state?
         if (commit.getOrElse(false)) {
-          // FIXME: can this be processed in the background?
-          commitResults(
-            odinsonQuery = odinsonQuery,
-            parentQuery = parentQuery,
-            label = label.getOrElse("Mention")
-          )
+          odinsonQuery match {
+            case Some(q) =>
+              // FIXME: can this be processed in the background?
+              commitResults(
+                odinsonQuery = odinsonQuery.get,
+                parentQuery = parentQuery,
+                label = label.getOrElse("Mention")
+              )
+            case _ =>
+              throw new IllegalArgumentException("Commit is not supported without specifying an odinson query")
+          }
         }
 
-        val json = Json.toJson(mkJson(odinsonQuery, parentQuery, duration, results, enriched))
+        val json = Json.toJson(mkJson(odinsonQuery, parentQuery, sentenceQuery, duration, results, enriched))
         json.format(pretty)
       } catch {
         case NonFatal(e) =>
@@ -278,7 +285,7 @@ class OdinsonController @Inject() (system: ActorSystem, cc: ControllerComponents
     "builtAtMillis"         -> BuildInfo.builtAtMillis
   )
 
-  def mkJson(odinsonQuery: String, parentQuery: Option[String], duration: Float, results: OdinResults, enriched: Boolean): JsValue = {
+  def mkJson(odinsonQuery: Option[String], parentQuery: Option[String],sentenceQuery: Option[String], duration: Float, results: OdinResults, enriched: Boolean): JsValue = {
 
     val scoreDocs: JsValue = enriched match {
       case true  => Json.arr(results.scoreDocs.map(mkJsonWithEnrichedResponse):_*)
@@ -288,6 +295,7 @@ class OdinsonController @Inject() (system: ActorSystem, cc: ControllerComponents
     Json.obj(
       "odinsonQuery" -> odinsonQuery,
       "parentQuery"  -> parentQuery,
+      "sentenceQuery"  -> sentenceQuery,
       "duration"     -> duration,
       "totalHits"    -> results.totalHits,
       "scoreDocs"    -> scoreDocs
@@ -351,3 +359,5 @@ class OdinsonController @Inject() (system: ActorSystem, cc: ControllerComponents
   }
 
 }
+
+

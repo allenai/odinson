@@ -10,14 +10,16 @@ import ai.lum.odinson.lucene._
 import ai.lum.odinson.utils.ExecutionContextExecutorServiceBridge
 
 class OdinsonIndexSearcher(
-    context: IndexReaderContext,
-    executor: ExecutorService,
-    computeTotalHits: Boolean,
-) extends IndexSearcher(context, executor) {
+                            context: IndexReaderContext,
+                            executor: ExecutorService,
+                            computeTotalHits: Boolean,
+                          ) extends IndexSearcher(context, executor) {
 
   def this(r: IndexReader, e: ExecutorService, computeTotalHits: Boolean) = this(r.getContext(), e, computeTotalHits)
-  def this(r: IndexReader, e: ExecutionContext,  computeTotalHits: Boolean) =
+
+  def this(r: IndexReader, e: ExecutionContext, computeTotalHits: Boolean) =
     this(r.getContext(), ExecutionContextExecutorServiceBridge(e), computeTotalHits)
+
   def this(r: IndexReader, computeTotalHits: Boolean) = this(r.getContext(), null, computeTotalHits)
 
   def odinSearch(query: OdinsonQuery): OdinResults = {
@@ -36,6 +38,7 @@ class OdinsonIndexSearcher(
     val cappedNumHits = math.min(numHits, limit)
     val manager = new CollectorManager[OdinsonCollector, OdinResults] {
       def newCollector() = new OdinsonCollector(cappedNumHits, after, computeTotalHits)
+
       def reduce(collectors: Collection[OdinsonCollector]): OdinResults = {
         val results = collectors.iterator.asScala.map(_.odinResults).toArray
         OdinResults.merge(0, cappedNumHits, results, true)
@@ -43,5 +46,30 @@ class OdinsonIndexSearcher(
     }
     search(query, manager)
   }
+
+  def pureSearch(query: Query, n: Int): OdinResults =
+    OdinsonIndexSearcher.convertToOdinResult(search(query, n))
+
+  def pureSearch(after: OdinsonScoreDoc, query: Query, n: Int): OdinResults =
+    OdinsonIndexSearcher.convertToOdinResult(searchAfter(after, query, n))
+
+}
+
+
+object OdinsonIndexSearcher {
+
+  private def convertToOdinResult(topDocs: TopDocs): OdinResults = {
+    return new OdinResults(
+      topDocs.totalHits,
+      topDocs.scoreDocs.map(convertToOdinScoreDoc),
+      topDocs.getMaxScore
+    )
+  }
+
+
+  private def convertToOdinScoreDoc(scoreDoc: ScoreDoc): OdinsonScoreDoc = {
+    new OdinsonScoreDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex)
+  }
+
 
 }
