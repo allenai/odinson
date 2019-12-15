@@ -231,11 +231,21 @@ class OdinsonController @Inject() (system: ActorSystem, cc: ControllerComponents
         val start = System.currentTimeMillis()
 
 
-        var queryBuilder = ExtractionQuery.builder()
+        // add default term of 'word' for tokens that did not specify a term
+        val modifiedSentenceQuery = sentenceQuery.map{ sq =>
+          sq.split("\\s+").map{ qp =>
+            if (!qp.contains(":")) {
+              "word:" + qp
+            } else {
+              qp
+            }
+          }.mkString(" ")
+        }
 
+        var queryBuilder = ExtractionQuery.builder()
         queryBuilder.setOdinsonQuery(odinsonQuery)
         queryBuilder.setDocumentQuery(parentQuery)
-        queryBuilder.setSentenceQuery(sentenceQuery)
+        queryBuilder.setSentenceQuery(modifiedSentenceQuery)
         queryBuilder.setLimit(pageSize.asInstanceOf[Int])
         prevDoc.flatMap(doc => prevScore.map(score => (doc, score))).foreach{
           case (d, s) => queryBuilder.setContinuation(d, s)
@@ -259,7 +269,7 @@ class OdinsonController @Inject() (system: ActorSystem, cc: ControllerComponents
           }
         }
 
-        val json = Json.toJson(mkJson(odinsonQuery, parentQuery, sentenceQuery, duration, results, enriched))
+        val json = Json.toJson(mkJson(odinsonQuery, parentQuery, modifiedSentenceQuery, duration, results, enriched))
         json.format(pretty)
       } catch {
         case NonFatal(e) =>
