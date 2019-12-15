@@ -2,12 +2,14 @@ package ai.lum.odinson.lucene.search
 
 import java.util.Collection
 import java.util.concurrent.ExecutorService
+
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import org.apache.lucene.index._
 import org.apache.lucene.search._
 import ai.lum.odinson.lucene._
 import ai.lum.odinson.utils.ExecutionContextExecutorServiceBridge
+import org.apache.lucene.search.BooleanClause.Occur
 
 class OdinsonIndexSearcher(
                             context: IndexReaderContext,
@@ -47,11 +49,25 @@ class OdinsonIndexSearcher(
     search(query, manager)
   }
 
-  def pureSearch(query: Query, n: Int): OdinResults =
-    OdinsonIndexSearcher.convertToOdinResult(search(query, n))
+  def pureSearch(query: Query, n: Int): OdinResults = {
 
-  def pureSearch(after: OdinsonScoreDoc, query: Query, n: Int): OdinResults =
-    OdinsonIndexSearcher.convertToOdinResult(searchAfter(after, query, n))
+    // Modify query to only return sentence entries
+    val builder = new BooleanQuery.Builder()
+    builder.add(query, Occur.MUST)
+    builder.add(new TermQuery(new Term("type", "parent")), Occur.MUST_NOT)
+
+    OdinsonIndexSearcher.convertToOdinResult(search(builder.build(), n))
+  }
+
+  def pureSearch(after: OdinsonScoreDoc, query: Query, n: Int): OdinResults = {
+
+    // Modify query to only return sentence entries
+    val builder = new BooleanQuery.Builder()
+    builder.add(query, Occur.MUST)
+    builder.add(new TermQuery(new Term("type", "parent")), Occur.MUST_NOT)
+
+    OdinsonIndexSearcher.convertToOdinResult(searchAfter(after, builder.build(), n))
+  }
 
 }
 
