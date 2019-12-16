@@ -165,7 +165,7 @@ class ExtractorEngine(
     // parse sentence query
     val sentenceQuery = extractionQuery.sentenceLuceneQuery.map { sq =>
       val queryParser = new QueryParser(
-        "raw",
+        "word", // default to searching over words
         analyzer)
 
       queryParser.parse(sq)
