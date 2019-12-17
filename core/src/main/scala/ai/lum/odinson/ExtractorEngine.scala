@@ -159,7 +159,7 @@ class ExtractorEngine(
     TokenStreamUtils.getTokens(docID, fieldName, indexSearcher, analyzer)
   }
 
-  def query(extractionQuery: ExtractionQuery): OdinResults = {
+  def query(extractionQuery: ExtractionQueryParams): OdinResults = {
 
     // combine the odinson query if needed
     val odinsonQuery = (extractionQuery.odinsonQuery,

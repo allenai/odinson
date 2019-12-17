@@ -17,7 +17,7 @@ import org.apache.lucene.search.highlight.TokenSources
 import org.apache.lucene.search._
 import ai.lum.common.ConfigUtils._
 import ai.lum.common.FileUtils._
-import ai.lum.odinson.{BuildInfo, ExtractionQuery, ExtractorEngine}
+import ai.lum.odinson.{BuildInfo, ExtractionQueryParams, ExtractorEngine}
 import ai.lum.odinson.digraph.Vocabulary
 import org.apache.lucene.store.FSDirectory
 import ai.lum.odinson.lucene.search.OdinsonScoreDoc
@@ -237,7 +237,7 @@ class OdinsonController @Inject()(system: ActorSystem, cc: ControllerComponents)
       try {
         val start = System.currentTimeMillis()
 
-        var queryBuilder = ExtractionQuery.builder()
+        var queryBuilder = ExtractionQueryParams.builder()
         queryBuilder.setOdinsonQuery(odinsonQuery)
         queryBuilder.setDocumentQuery(parentQuery)
         queryBuilder.setSentenceQuery(sentenceQuery)
