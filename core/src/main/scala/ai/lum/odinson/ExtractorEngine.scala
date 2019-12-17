@@ -4,7 +4,12 @@ import java.nio.file.Path
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer
 import org.apache.lucene.document.{Document => LuceneDocument}
-import org.apache.lucene.search.{MatchAllDocsQuery, Query, BooleanClause => LuceneBooleanClause, BooleanQuery => LuceneBooleanQuery}
+import org.apache.lucene.search.{
+  MatchAllDocsQuery,
+  Query,
+  BooleanClause => LuceneBooleanClause,
+  BooleanQuery => LuceneBooleanQuery
+}
 import org.apache.lucene.store.{Directory, FSDirectory}
 import org.apache.lucene.index.DirectoryReader
 import org.apache.lucene.queryparser.classic.QueryParser
@@ -20,13 +25,12 @@ import ai.lum.odinson.utils.ConfigFactory
 import ai.lum.odinson.digraph.{Optional, Vocabulary}
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 
-
 class ExtractorEngine(
-                       val indexSearcher: OdinsonIndexSearcher,
-                       val compiler: QueryCompiler,
-                       val state: State,
-                       val parentDocIdField: String
-                     ) {
+  val indexSearcher: OdinsonIndexSearcher,
+  val compiler: QueryCompiler,
+  val state: State,
+  val parentDocIdField: String
+) {
 
   /** Analyzer for parent queries.  Don't skip any stopwords. */
   val analyzer = new WhitespaceAnalyzer()
@@ -45,16 +49,19 @@ class ExtractorEngine(
   def getParentDoc(docId: String): LuceneDocument = {
     val sterileDocID = docId.escapeJava
     val booleanQuery = new LuceneBooleanQuery.Builder()
-    val q1 = new QueryParser(parentDocIdField, analyzer).parse(s""""$sterileDocID"""")
+    val q1 =
+      new QueryParser(parentDocIdField, analyzer).parse(s""""$sterileDocID"""")
     booleanQuery.add(q1, LuceneBooleanClause.Occur.MUST)
     val q2 = new QueryParser("type", analyzer).parse("root")
     booleanQuery.add(q2, LuceneBooleanClause.Occur.MUST)
     val q = booleanQuery.build
-    val docs = indexSearcher.search(q, 10).scoreDocs.map(sd => indexReader.document(sd.doc))
+    val docs = indexSearcher
+      .search(q, 10)
+      .scoreDocs
+      .map(sd => indexReader.document(sd.doc))
     //require(docs.size == 1, s"There should be only one parent doc for a docId, but ${docs.size} found.")
     docs.head
   }
-
 
   /** executes query and returns all results */
   def query(odinsonQuery: String): OdinResults = {
@@ -83,11 +90,11 @@ class ExtractorEngine(
 
   /** executes query and returns next n results after the provided doc */
   def query(
-             odinsonQuery: String,
-             n: Int,
-             afterDoc: Int,
-             afterScore: Float
-           ): OdinResults = {
+    odinsonQuery: String,
+    n: Int,
+    afterDoc: Int,
+    afterScore: Float
+  ): OdinResults = {
     query(
       compiler.mkQuery(odinsonQuery),
       n,
@@ -97,12 +104,12 @@ class ExtractorEngine(
 
   /** executes query and returns next n results after the provided doc */
   def query(
-             odinsonQuery: String,
-             parentQuery: String,
-             n: Int,
-             afterDoc: Int,
-             afterScore: Float
-           ): OdinResults = {
+    odinsonQuery: String,
+    parentQuery: String,
+    n: Int,
+    afterDoc: Int,
+    afterScore: Float
+  ): OdinResults = {
     query(
       compiler.mkQuery(odinsonQuery, parentQuery),
       n,
@@ -112,29 +119,29 @@ class ExtractorEngine(
 
   /** executes query and returns next n results after the provided doc */
   def query(
-             odinsonQuery: String,
-             n: Int,
-             after: OdinsonScoreDoc
-           ): OdinResults = {
+    odinsonQuery: String,
+    n: Int,
+    after: OdinsonScoreDoc
+  ): OdinResults = {
     query(compiler.mkQuery(odinsonQuery), n, after)
   }
 
   /** executes query and returns next n results after the provided doc */
   def query(
-             odinsonQuery: String,
-             parentQuery: String,
-             n: Int,
-             after: OdinsonScoreDoc
-           ): OdinResults = {
+    odinsonQuery: String,
+    parentQuery: String,
+    n: Int,
+    after: OdinsonScoreDoc
+  ): OdinResults = {
     query(compiler.mkQuery(odinsonQuery, parentQuery), n, after)
   }
 
   /** executes query and returns next n results after the provided doc */
   def query(
-             odinsonQuery: OdinsonQuery,
-             n: Int,
-             after: OdinsonScoreDoc
-           ): OdinResults = {
+    odinsonQuery: OdinsonQuery,
+    n: Int,
+    after: OdinsonScoreDoc
+  ): OdinResults = {
     indexSearcher.odinSearch(after, odinsonQuery, n)
   }
 
@@ -155,18 +162,21 @@ class ExtractorEngine(
   def query(extractionQuery: ExtractionQuery): OdinResults = {
 
     // combine the odinson query if needed
-    val odinsonQuery = (extractionQuery.odinsonQuery, extractionQuery.documentLuceneQuery) match {
-      case (None, None) => None
+    val odinsonQuery = (extractionQuery.odinsonQuery,
+                        extractionQuery.documentLuceneQuery) match {
+      case (None, None)         => None
       case (Some(oq), Some(dq)) => Some(compiler.mkQuery(oq, dq))
-      case (Some(oq), None) => Some(compiler.mkQuery(oq))
-      case _ => throw new IllegalArgumentException("Document query can not be defined without a corresponding odinson query")
+      case (Some(oq), None)     => Some(compiler.mkQuery(oq))
+      case _ =>
+        throw new IllegalArgumentException(
+          "Document query can not be defined without a corresponding odinson query")
     }
 
     // parse sentence query
     val sentenceQuery = extractionQuery.sentenceLuceneQuery.map { sq =>
-      val queryParser = new QueryParser(
-        "word", // default to searching over words
-        analyzer)
+      val queryParser =
+        new QueryParser("word", // default to searching over words
+                        analyzer)
 
       queryParser.parse(sq)
     }
@@ -177,21 +187,25 @@ class ExtractorEngine(
         new OdinsonFilteredQuery(oq, sq)
       case (None, Some(sq)) => sq // TODO: convert to some kind of odinson query
       case (Some(oq), None) => oq
-      case _ => throw new IllegalArgumentException("Either odinson query or a sentence query have to be defined")
+      case _ =>
+        throw new IllegalArgumentException(
+          "Either odinson query or a sentence query have to be defined")
     }
 
     val numberOfDocuments = extractionQuery.numDocuments.getOrElse(numDocs())
 
     // run the query
     (fullQuery, extractionQuery.continuation) match {
-      case (q: OdinsonQuery, Some(c)) => indexSearcher.odinSearch(c, q, numberOfDocuments)
-      case (q: OdinsonQuery, _) => indexSearcher.odinSearch(q, numberOfDocuments)
-      case (q: Query, Some(c)) => indexSearcher.pureSearch(c, q, numberOfDocuments)
+      case (q: OdinsonQuery, Some(c)) =>
+        indexSearcher.odinSearch(c, q, numberOfDocuments)
+      case (q: OdinsonQuery, _) =>
+        indexSearcher.odinSearch(q, numberOfDocuments)
+      case (q: Query, Some(c)) =>
+        indexSearcher.pureSearch(c, q, numberOfDocuments)
       case (q: Query, _) => indexSearcher.pureSearch(q, numberOfDocuments)
     }
 
   }
-
 
 }
 
@@ -225,6 +239,5 @@ object ExtractorEngine {
     val parentDocIdField = config[String]("index.documentIdField")
     new ExtractorEngine(indexSearcher, compiler, state, parentDocIdField)
   }
-
 
 }

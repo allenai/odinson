@@ -3,13 +3,13 @@ package ai.lum.odinson
 import ai.lum.odinson.lucene.search.OdinsonScoreDoc
 import javax.print.attribute.standard.NumberOfDocuments
 
-
-class ExtractionQuery(var odinsonQuery: Option[String],
-                      var documentLuceneQuery: Option[String],
-                      var sentenceLuceneQuery: Option[String],
-                      var numDocuments: Option[Int],
-                      var continuation: Option[OdinsonScoreDoc],
-                     ) {
+class ExtractionQuery(
+  var odinsonQuery: Option[String],
+  var documentLuceneQuery: Option[String],
+  var sentenceLuceneQuery: Option[String],
+  var numDocuments: Option[Int],
+  var continuation: Option[OdinsonScoreDoc],
+) {
 
   def setOdinsonQuery(query: String): ExtractionQuery = {
     this.odinsonQuery = Some(query)
