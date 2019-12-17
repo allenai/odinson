@@ -364,7 +364,7 @@ components:
       name: sentenceQuery
       in: query
       type: string
-      description: A lucene query on a sentence.
+      description: A Lucene query on a sentence.
       example: "word: founded"
 
     ParentDocumentQuery:
