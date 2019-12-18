@@ -34,9 +34,10 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
       val results = engine.query(
         ExtractionQueryParams.builder().setOdinsonQuery("[] <conj_and []"))
 
+      results.isRight shouldBe true
       // there is only one sentence with a conjunction in the dummy index (sentence id:0)
-      results.scoreDocs.length shouldBe 1
-      results.scoreDocs.head.doc shouldBe 0
+      results.right.get.scoreDocs.length shouldBe 1
+      results.right.get.scoreDocs.head.doc shouldBe 0
   }
 
   it should "correctly return results when only an sentence query is defined" in withExtractorEngine {
@@ -44,10 +45,11 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
       val results = engine.query(
         ExtractionQueryParams.builder().setSentenceQuery("word: 84"))
 
+      results.isRight shouldBe true
       // there are two sentences with the word 84 in the dummy index (sentence ids: 3 and 4)
-      results.scoreDocs.length shouldBe 2
-      results.scoreDocs.map(_.doc) contains 3
-      results.scoreDocs.map(_.doc) contains 4
+      results.right.get.scoreDocs.length shouldBe 2
+      results.right.get.scoreDocs.map(_.doc) contains 3
+      results.right.get.scoreDocs.map(_.doc) contains 4
   }
 
   it should "correctly limit the results based on the numDocuments param" in withExtractorEngine {
@@ -58,18 +60,24 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
           .setSentenceQuery("word: 84")
           .setLimit(1))
 
+      results.isRight shouldBe true
       // there are two sentences with the word 84 in the dummy index (sentence ids: 3 and 4)
-      results.scoreDocs.length shouldBe 1
+      results.right.get.scoreDocs.length shouldBe 1
   }
 
   it should "correctly default to words when term is not specified" in withExtractorEngine {
     engine =>
       val implicitResults =
         engine.query(ExtractionQueryParams.builder().setSentenceQuery("84"))
+
+      implicitResults.isRight shouldBe true
+
       val explicitResults = engine.query(
         ExtractionQueryParams.builder().setSentenceQuery("word: 84"))
 
-      implicitResults.scoreDocs.map(_.doc) shouldEqual explicitResults.scoreDocs
+      explicitResults.isRight shouldBe true
+      implicitResults.right.get.scoreDocs
+        .map(_.doc) shouldEqual explicitResults.right.get.scoreDocs
         .map(_.doc)
   }
 
@@ -82,8 +90,9 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
           .setOdinsonQuery("[] <conj_and []")
       )
 
-      results.totalHits shouldBe 0
-      results.scoreDocs.length shouldBe 0
+      results.isRight shouldBe true
+      results.right.get.totalHits shouldBe 0
+      results.right.get.scoreDocs.length shouldBe 0
   }
 
   it should "correctly return the 1 result that matches both odinson and sentence queries" in withExtractorEngine {
@@ -96,9 +105,10 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
           .setOdinsonQuery("[] <compound []")
       )
 
-      results.totalHits shouldBe 1
-      results.scoreDocs.length shouldBe 1
-      results.scoreDocs.head.doc shouldBe 3
+      results.isRight shouldBe true
+      results.right.get.totalHits shouldBe 1
+      results.right.get.scoreDocs.length shouldBe 1
+      results.right.get.scoreDocs.head.doc shouldBe 3
   }
 
   it should "correctly handle continuation when just odinson query is defined" in withExtractorEngine {
@@ -106,8 +116,9 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
       val results = engine.query(
         ExtractionQueryParams.builder().setOdinsonQuery("[] <nsubj []"))
 
+      results.isRight shouldBe true
       // all sentences have an nsubj
-      results.scoreDocs.length shouldBe 4
+      results.right.get.scoreDocs.length shouldBe 4
 
       val page1 = engine.query(
         ExtractionQueryParams
@@ -115,18 +126,22 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
           .setOdinsonQuery("[] <nsubj []")
           .setLimit(2))
 
-      page1.scoreDocs.length shouldBe 2
+      page1.isRight shouldBe true
+      page1.right.get.scoreDocs.length shouldBe 2
 
       val page2 = engine.query(
         ExtractionQueryParams
           .builder()
           .setOdinsonQuery("[] <nsubj []")
-          .setContinuation(page1.scoreDocs(1).doc, page1.scoreDocs(1).score)
+          .setContinuation(page1.right.get.scoreDocs(1).doc,
+                           page1.right.get.scoreDocs(1).score)
       )
 
-      page2.scoreDocs.length shouldBe 2
+      page2.isRight shouldBe true
+      page2.right.get.scoreDocs.length shouldBe 2
 
-      results.scoreDocs.map(_.doc) shouldEqual (page1.scoreDocs ++ page2.scoreDocs)
+      results.right.get.scoreDocs
+        .map(_.doc) shouldEqual (page1.right.get.scoreDocs ++ page2.right.get.scoreDocs)
         .map(_.doc)
 
   }
@@ -136,8 +151,9 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
       val results =
         engine.query(ExtractionQueryParams.builder().setSentenceQuery("84"))
 
+      results.isRight shouldBe true
       // only two sentences with word 84
-      results.scoreDocs.length shouldBe 2
+      results.right.get.scoreDocs.length shouldBe 2
 
       val page1 = engine.query(
         ExtractionQueryParams
@@ -145,18 +161,22 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
           .setSentenceQuery("84")
           .setLimit(1))
 
-      page1.scoreDocs.length shouldBe 1
+      page1.isRight shouldBe true
+      page1.right.get.scoreDocs.length shouldBe 1
 
       val page2 = engine.query(
         ExtractionQueryParams
           .builder()
           .setSentenceQuery("84")
-          .setContinuation(page1.scoreDocs(0).doc, page1.scoreDocs(0).score)
+          .setContinuation(page1.right.get.scoreDocs(0).doc,
+                           page1.right.get.scoreDocs(0).score)
       )
 
-      page2.scoreDocs.length shouldBe 1
+      page2.isRight shouldBe true
+      page2.right.get.scoreDocs.length shouldBe 1
 
-      results.scoreDocs.map(_.doc) shouldEqual (page1.scoreDocs ++ page2.scoreDocs)
+      results.right.get.scoreDocs
+        .map(_.doc) shouldEqual (page1.right.get.scoreDocs ++ page2.right.get.scoreDocs)
         .map(_.doc)
 
   }
@@ -170,8 +190,9 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
             .setSentenceQuery("84")
             .setOdinsonQuery("[] <nsubj []"))
 
+      results.isRight shouldBe true
       // only two sentences with word 84
-      results.scoreDocs.length shouldBe 2
+      results.right.get.scoreDocs.length shouldBe 2
 
       val page1 = engine.query(
         ExtractionQueryParams
@@ -180,21 +201,33 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
           .setOdinsonQuery("[] <nsubj []")
           .setLimit(1))
 
-      page1.scoreDocs.length shouldBe 1
+      page1.isRight shouldBe true
+      page1.right.get.scoreDocs.length shouldBe 1
 
       val page2 = engine.query(
         ExtractionQueryParams
           .builder()
           .setSentenceQuery("84")
           .setOdinsonQuery("[] <nsubj []")
-          .setContinuation(page1.scoreDocs(0).doc, page1.scoreDocs(0).score)
+          .setContinuation(page1.right.get.scoreDocs(0).doc,
+                           page1.right.get.scoreDocs(0).score)
       )
 
-      page2.scoreDocs.length shouldBe 1
+      page2.isRight shouldBe true
+      page2.right.get.scoreDocs.length shouldBe 1
 
-      results.scoreDocs.map(_.doc) shouldEqual (page1.scoreDocs ++ page2.scoreDocs)
+      results.right.get.scoreDocs
+        .map(_.doc) shouldEqual (page1.right.get.scoreDocs ++ page2.right.get.scoreDocs)
         .map(_.doc)
 
+  }
+
+  it should "return an error in case the query invalid" in withExtractorEngine {
+    engine =>
+      val results =
+        engine.query(ExtractionQueryParams.builder().setSentenceQuery("tag:*"))
+
+      results.isLeft shouldBe true
   }
 
 }

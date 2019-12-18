@@ -246,34 +246,43 @@ class OdinsonController @Inject()(system: ActorSystem, cc: ControllerComponents)
           case (d, s) => queryBuilder.setContinuation(d, s)
         }
 
-        val results: OdinResults = extractorEngine.query(queryBuilder)
-        val duration = (System
-          .currentTimeMillis() - start) / 1000f // duration in seconds
+        extractorEngine.query(queryBuilder) match {
+          case Right(results) =>
+            val duration = (System
+              .currentTimeMillis() - start) / 1000f // duration in seconds
 
-        // should the results be added to the state?
-        if (commit.getOrElse(false)) {
-          odinsonQuery match {
-            case Some(q) =>
-              // FIXME: can this be processed in the background?
-              commitResults(
-                odinsonQuery = odinsonQuery.get,
-                parentQuery = parentQuery,
-                label = label.getOrElse("Mention")
-              )
-            case _ =>
-              throw new IllegalArgumentException(
-                "Commit is not supported without specifying an odinson query")
-          }
+            // should the results be added to the state?
+            if (commit.getOrElse(false)) {
+              odinsonQuery match {
+                case Some(q) =>
+                  // FIXME: can this be processed in the background?
+                  commitResults(
+                    odinsonQuery = odinsonQuery.get,
+                    parentQuery = parentQuery,
+                    label = label.getOrElse("Mention")
+                  )
+                case _ =>
+                  throw new IllegalArgumentException(
+                    "Commit is not supported without specifying an odinson query")
+              }
+            }
+
+            val jsonValue = mkJson(odinsonQuery,
+                   parentQuery,
+                   sentenceQuery,
+                   duration,
+                   results,
+                   enriched)
+            val json = Json.toJson(jsonValue)
+            json.format(pretty)
+            Status(200)(json)
+
+          case Left(err) =>
+            val json = Json.toJson(Json.obj("error" -> err.message))
+            json.format(pretty)
+            Status(400)(json)
         }
 
-        val json = Json.toJson(
-          mkJson(odinsonQuery,
-                 parentQuery,
-                 sentenceQuery,
-                 duration,
-                 results,
-                 enriched))
-        json.format(pretty)
       } catch {
         case NonFatal(e) =>
           val stackTrace = ExceptionUtils.getStackTrace(e)
@@ -297,6 +306,12 @@ class OdinsonController @Inject()(system: ActorSystem, cc: ControllerComponents)
     "builtAtString" -> BuildInfo.builtAtString,
     "builtAtMillis" -> BuildInfo.builtAtMillis
   )
+
+  def mkErrorJson(message: String): JsValue = {
+    Json.obj(
+      "error" -> message,
+    )
+  }
 
   def mkJson(odinsonQuery: Option[String],
              parentQuery: Option[String],

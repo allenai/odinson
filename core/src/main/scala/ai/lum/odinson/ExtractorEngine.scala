@@ -25,6 +25,8 @@ import ai.lum.odinson.utils.ConfigFactory
 import ai.lum.odinson.digraph.{Optional, Vocabulary}
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 
+import scala.util.Try
+
 class ExtractorEngine(
   val indexSearcher: OdinsonIndexSearcher,
   val compiler: QueryCompiler,
@@ -159,53 +161,56 @@ class ExtractorEngine(
     TokenStreamUtils.getTokens(docID, fieldName, indexSearcher, analyzer)
   }
 
-  def query(extractionQuery: ExtractionQueryParams): OdinResults = {
+  def query(extractionQuery: ExtractionQueryParams)
+    : Either[ExtractionError, OdinResults] =
+    Try {
 
-    // combine the odinson query if needed
-    val odinsonQuery = (extractionQuery.odinsonQuery,
-                        extractionQuery.documentLuceneQuery) match {
-      case (None, None)         => None
-      case (Some(oq), Some(dq)) => Some(compiler.mkQuery(oq, dq))
-      case (Some(oq), None)     => Some(compiler.mkQuery(oq))
-      case _ =>
-        throw new IllegalArgumentException(
-          "Document query can not be defined without a corresponding odinson query")
-    }
+      // combine the odinson query if needed
+      val odinsonQuery = (extractionQuery.odinsonQuery,
+                          extractionQuery.documentLuceneQuery) match {
+        case (None, None)         => None
+        case (Some(oq), Some(dq)) => Some(compiler.mkQuery(oq, dq))
+        case (Some(oq), None)     => Some(compiler.mkQuery(oq))
+        case _ =>
+          throw new IllegalArgumentException(
+            "Document query can not be defined without a corresponding odinson query")
+      }
 
-    // parse sentence query
-    val sentenceQuery = extractionQuery.sentenceLuceneQuery.map { sq =>
-      val queryParser =
-        new QueryParser("word", // default to searching over words
-                        analyzer)
+      // parse sentence query
+      val sentenceQuery = extractionQuery.sentenceLuceneQuery.map { sq =>
+        val queryParser =
+          new QueryParser("word", // default to searching over words
+                          analyzer)
 
-      queryParser.parse(sq)
-    }
+        queryParser.parse(sq)
+      }
 
-    // final combine of all query parts to create a single lucene query
-    val fullQuery = (odinsonQuery, sentenceQuery) match {
-      case (Some(oq), Some(sq)) =>
-        new OdinsonFilteredQuery(oq, sq)
-      case (None, Some(sq)) => sq // TODO: convert to some kind of odinson query
-      case (Some(oq), None) => oq
-      case _ =>
-        throw new IllegalArgumentException(
-          "Either odinson query or a sentence query have to be defined")
-    }
+      // final combine of all query parts to create a single lucene query
+      val fullQuery = (odinsonQuery, sentenceQuery) match {
+        case (Some(oq), Some(sq)) =>
+          new OdinsonFilteredQuery(oq, sq)
+        case (None, Some(sq)) =>
+          sq // TODO: convert to some kind of odinson query
+        case (Some(oq), None) => oq
+        case _ =>
+          throw new IllegalArgumentException(
+            "Either odinson query or a sentence query have to be defined")
+      }
 
-    val numberOfDocuments = extractionQuery.numDocuments.getOrElse(numDocs())
+      val numberOfDocuments = extractionQuery.numDocuments.getOrElse(numDocs())
 
-    // run the query
-    (fullQuery, extractionQuery.continuation) match {
-      case (q: OdinsonQuery, Some(c)) =>
-        indexSearcher.odinSearch(c, q, numberOfDocuments)
-      case (q: OdinsonQuery, _) =>
-        indexSearcher.odinSearch(q, numberOfDocuments)
-      case (q: Query, Some(c)) =>
-        indexSearcher.pureSearch(c, q, numberOfDocuments)
-      case (q: Query, _) => indexSearcher.pureSearch(q, numberOfDocuments)
-    }
+      // run the query
+      (fullQuery, extractionQuery.continuation) match {
+        case (q: OdinsonQuery, Some(c)) =>
+          indexSearcher.odinSearch(c, q, numberOfDocuments)
+        case (q: OdinsonQuery, _) =>
+          indexSearcher.odinSearch(q, numberOfDocuments)
+        case (q: Query, Some(c)) =>
+          indexSearcher.pureSearch(c, q, numberOfDocuments)
+        case (q: Query, _) => indexSearcher.pureSearch(q, numberOfDocuments)
+      }
 
-  }
+    }.toEither.left.map(t => ExtractionError(t.getMessage))
 
 }
 
