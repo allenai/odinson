@@ -23,8 +23,5 @@ jobs:
           # Read about caching dependencies: https://circleci.com/docs/2.0/caching/
           key: sbt-cache
       - run:
-          name: Compile dist package
-          command: cat /dev/null | sbt clean update dist
-      - run:
-          name: Test
-          command: sbt test
+          name: Compile and test
+          command: cat /dev/null | sbt clean compile test
