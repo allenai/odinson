@@ -50,29 +50,30 @@ object IndexDocuments extends App with LazyLogging {
   val writer = OdinsonIndexWriter.fromConfig()
 
   // serialized org.clulab.processors.Document or Document json
-  val SUPPORTED_EXTENSIONS = "(?i).*?\\.(ser|json)$"
+  val SUPPORTED_EXTENSIONS = "(?i).*?\\.(ser|json|jsonl)$"
   // NOTE indexes the documents in parallel
   // FIXME: groupBy by extension-less basename?
 
   val documentFiles = if (synchronizeOrderWithDocumentId) {
     // files ordered by the id of the document
     docsDir.listFilesByRegex(SUPPORTED_EXTENSIONS, recursive = true)
-           .withFilter(f => !f.getName.endsWith(".metadata.ser"))
-           .map(f => (deserializeDoc(f)._1.id.map(_.toInt), f))
-           .toSeq
-           .sortBy(_._1)
-           .map(_._2)
+      .withFilter(f => !f.getName.endsWith(".metadata.ser"))
+      .map(f => (deserializeDocs(f)(0)._1.id.map(_.toInt), f))
+      .toSeq
+      .sortBy(_._1)
+      .map(_._2)
   } else {
     docsDir.listFilesByRegex(SUPPORTED_EXTENSIONS, recursive = true)
-           .toSeq.par
-           .withFilter(f => !f.getName.endsWith(".metadata.ser"))
+      .toSeq.par
+      .withFilter(f => !f.getName.endsWith(".metadata.ser"))
   }
 
   documentFiles.foreach{ f =>
     Try {
-      val (doc, md) = deserializeDoc(f)
-      val block = mkDocumentBlock(doc, md)
-      writer.addDocuments(block)
+      deserializeDocs(f).foreach(r => {
+        val block = mkDocumentBlock(r._1, r._2)
+        writer.addDocuments(block)
+      })
     } match {
       case Success(_) =>
         logger.info(s"Indexed ${f.getName}")
@@ -87,10 +88,16 @@ object IndexDocuments extends App with LazyLogging {
   // fin
 
 
-  def deserializeDoc(f: File): (ProcessorsDocument, Option[DocumentMetadata]) = f.getName.toLowerCase match {
+  def deserializeDocs(f: File): Seq[(ProcessorsDocument, Option[DocumentMetadata])] = f.getName.toLowerCase match {
+    case jsonl if jsonl.endsWith(".jsonl") =>
+      val source = scala.io.Source.fromFile(f)
+      val docs = source.getLines.map(l => (JSONSerializer.toDocument(parse(l)), None)).toList
+      source.close()
+      docs
+
     case json if json.endsWith(".json") =>
       val doc = JSONSerializer.toDocument(f)
-      (doc, None)
+      List((doc, None))
     case ser if ser.endsWith(".ser") =>
       val doc = Serializer.deserialize[ProcessorsDocument](f)
       val md: Option[DocumentMetadata] = {
@@ -99,13 +106,13 @@ object IndexDocuments extends App with LazyLogging {
           Some(Serializer.deserialize[DocumentMetadata](mdFile))
         } else None
       }
-      (doc, md)
+      List((doc, md))
       // NOTE: we're assuming this is
     case gz if gz.endsWith("json.gz") =>
       val contents: String = GzipUtils.uncompress(f)
       val jast = parse(contents)
       val doc = JSONSerializer.toDocument(jast)
-      (doc, None)
+      List((doc, None))
     case other =>
       throw new Exception(s"Cannot deserialize ${f.getName} to org.clulab.processors.Document. Unsupported extension '$other'")
   }
