@@ -88,16 +88,26 @@ object IndexDocuments extends App with LazyLogging {
   // fin
 
 
-  def deserializeDocs(f: File): Seq[(ProcessorsDocument, Option[DocumentMetadata])] = f.getName.toLowerCase match {
+  def deserializeDocs(f: File): Seq[(ProcessorsDocument, JValue)] = f.getName.toLowerCase match {
     case jsonl if jsonl.endsWith(".jsonl") =>
       val source = scala.io.Source.fromFile(f)
-      val docs = source.getLines.map(l => (JSONSerializer.toDocument(parse(l)), None)).toList
+      val docs = source.getLines.map(l => {
+        val jast = parse(l)
+        val metadata = jast \ "metadata"
+        val doc = JSONSerializer.toDocument(jast)
+        (doc, metadata)
+      }).toList
       source.close()
       docs
 
     case json if json.endsWith(".json") =>
-      val doc = JSONSerializer.toDocument(f)
-      List((doc, None))
+      val source = scala.io.Source.fromFile(f)
+      val docJson = parse(source.getLines.mkString)
+
+      source.close()
+      val doc = JSONSerializer.toDocument(docJson)
+      val metadata = docJson \ "metadata"
+      List((doc, metadata))
     case ser if ser.endsWith(".ser") =>
       val doc = Serializer.deserialize[ProcessorsDocument](f)
       val md: Option[DocumentMetadata] = {
@@ -106,13 +116,15 @@ object IndexDocuments extends App with LazyLogging {
           Some(Serializer.deserialize[DocumentMetadata](mdFile))
         } else None
       }
-      List((doc, md))
+      List((doc, JNothing))
       // NOTE: we're assuming this is
     case gz if gz.endsWith("json.gz") =>
       val contents: String = GzipUtils.uncompress(f)
       val jast = parse(contents)
+      val metadata = jast \ "metadata"
       val doc = JSONSerializer.toDocument(jast)
-      List((doc, None))
+
+      List((doc, metadata))
     case other =>
       throw new Exception(s"Cannot deserialize ${f.getName} to org.clulab.processors.Document. Unsupported extension '$other'")
   }
@@ -122,7 +134,7 @@ object IndexDocuments extends App with LazyLogging {
   }
 
   // generates a lucene document per sentence
-  def mkDocumentBlock(d: ProcessorsDocument, metadata: Option[DocumentMetadata]): Seq[Document] = {
+  def mkDocumentBlock(d: ProcessorsDocument, metadata: JValue): Seq[Document] = {
     // FIXME what should we do if the document has no id?
     val docId = d.id.getOrElse(generateUUID)
 
@@ -138,45 +150,57 @@ object IndexDocuments extends App with LazyLogging {
     block
   }
 
-  def mkParentDoc(docId: String, metadata: Option[DocumentMetadata]): Document = {
+  def indexKeyValueField(parent: Document, key: String, value: JValue): Unit ={
+    value match {
+      case JString(s) => {
+        parent.add(new TextField(key, s, Store.YES))
+      }
+      case JLong(l) => {
+        parent.add(new LongPoint(key, l))
+        parent.add(new StoredField(key, l))
+      }
+      case JDouble(d) => {
+        parent.add(new DoublePoint(key, d))
+        parent.add(new StoredField(key, d))
+      }
+      case JBool(b) => {
+        parent.add(new TextField(key, b.toString, Store.YES))
+      }
+      case _ => {
+        logger.warn("Field skipped (type not supported): " + value.toString)
+      }
+    }
+  }
+
+  def mkParentDoc(docId: String, metadata: JValue): Document = {
     val parent = new Document
     // FIXME these strings should probably be defined in the config, not hardcoded
     parent.add(new StringField("type", "parent", Store.NO))
     parent.add(new StringField("docId", docId, Store.YES))
 
-    if (metadata.nonEmpty) {
-      val md = metadata.get
-
-      val authors: Seq[String]    = md.authors.map{ a => s"${a.givenName} ${a.surName}" }
-      val     doi: Option[String] = md.doi.map(_.doi)
-      val     url: Option[String] = if (md.doi.nonEmpty) {
-        md.doi.get.url
-      } else if (md.pmid.nonEmpty) {
-        md.pmid.get.url
-      } else {
-        None
+    metadata match {
+      case JObject(fields) => {
+        for (field <- fields) {
+          if (field._1 == "type" || field._1 == "docId") {
+            logger.warn("\"type\" and \"docId\" are reserved fields and will be ignored. Use differently named fields if needed.")
+          } else {
+            field._2 match {
+              case JArray(values) => {
+                for (elem <- values) {
+                  indexKeyValueField(parent, field._1, elem)
+                }
+              }
+              case _ => {
+                indexKeyValueField(parent, field._1, field._2)
+              }
+            }
+          }
+        }
       }
-
-      val pubYear: Option[Int]    = md.publicationDate match {
-        case None => None
-        case Some(pd) => pd.year
+      case JNothing =>
+      case _ => {
+        logger.warn("Metadata skipped (bad format: not an object)")
       }
-
-      authors.foreach{ author: String => parent.add( new TextField("author", author, Store.YES)) }
-      md.title.foreach(title => parent.add( new TextField("title", title, Store.YES)))
-      // FIXME: should this be stored?
-      md.journal.foreach(v => parent.add( new TextField("venue", v, Store.YES)))
-      // FIXME: should this be stored?
-      pubYear.foreach{ y =>
-        parent.add( new IntPoint("year", y))
-        parent.add( new StoredField("year", y))
-      }
-      // FIXME: should this be stored?
-      doi.foreach(doi => parent.add( new TextField("doi", doi, Store.YES)))
-      url.foreach { url =>
-        parent.add( new TextField("url", url, Store.YES))
-      }
-
     }
 
     parent
