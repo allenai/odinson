@@ -17,7 +17,7 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
 
   "mkParentDoc" should "return a document with no metadata" in  {
     val parentDoc = mkParentDoc("001", JNothing)
-    parentDoc.getFields.size() shouldBe 2
+    parentDoc.getFields.size() shouldBe 2 // type and docId are always added to the parent doc, but nothing else should be there.
   }
 
   "mkParentDoc" should "return a document with simple metadata fields" in  {
