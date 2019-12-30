@@ -159,17 +159,17 @@ object IndexDocuments extends App with LazyLogging {
         parent.add(new LongPoint(key, l))
         parent.add(new StoredField(key, l))
       }
-      case JInt(i) => { // i is BigInteger, we truncate to long.
-        parent.add(new LongPoint(key, i.toLong))
-        parent.add(new StoredField(key, i.toLong))
+      case JInt(i) => { // i is BigInteger, we truncate to int.
+        parent.add(new IntPoint(key, i.toInt))
+        parent.add(new StoredField(key, i.toInt))
       }
       case JDouble(d) => {
         parent.add(new DoublePoint(key, d))
         parent.add(new StoredField(key, d))
       }
-      case JDecimal(d) => { // d is BigDecimal, we truncate to double.
-        parent.add(new DoublePoint(key, d.toDouble))
-        parent.add(new StoredField(key, d.toDouble))
+      case JDecimal(f) => { // d is BigDecimal, we truncate to float.
+        parent.add(new FloatPoint(key, f.toFloat))
+        parent.add(new StoredField(key, f.toFloat))
       }
       case JBool(b) => {
         parent.add(new TextField(key, b.toString, Store.YES))

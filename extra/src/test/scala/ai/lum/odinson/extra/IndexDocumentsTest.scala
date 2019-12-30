@@ -23,15 +23,17 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
   "mkParentDoc" should "return a document with simple metadata fields" in  {
     val parentDoc = mkParentDoc("001", JObject(List(
       ("author", JString("John")),
-      ("year", JLong(1981)),
+      ("yearlong", JLong(1981)),
       ("yearint", JInt(1981)),
-      ("cost", JDouble(30.4)),
+      ("costdouble", JDouble(30.4)),
+      ("costdecimal", JDecimal(30.4)),
       ("free", JBool(false))
     )))
     parentDoc.getField("author").stringValue shouldBe "John"
-    parentDoc.getField("year").numericValue shouldBe 1981
+    parentDoc.getField("yearlong").numericValue shouldBe 1981l
     parentDoc.getField("yearint").numericValue shouldBe 1981
-    parentDoc.getField("cost").numericValue shouldBe 30.4
+    parentDoc.getField("costdouble").numericValue shouldBe 30.4
+    parentDoc.getField("costdecimal").numericValue shouldBe 30.4f
     parentDoc.getField("free").stringValue shouldBe "false"
   }
 
