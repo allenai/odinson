@@ -24,11 +24,13 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
     val parentDoc = mkParentDoc("001", JObject(List(
       ("author", JString("John")),
       ("year", JLong(1981)),
+      ("yearint", JInt(1981)),
       ("cost", JDouble(30.4)),
       ("free", JBool(false))
     )))
     parentDoc.getField("author").stringValue shouldBe "John"
     parentDoc.getField("year").numericValue shouldBe 1981
+    parentDoc.getField("yearint").numericValue shouldBe 1981
     parentDoc.getField("cost").numericValue shouldBe 30.4
     parentDoc.getField("free").stringValue shouldBe "false"
   }
