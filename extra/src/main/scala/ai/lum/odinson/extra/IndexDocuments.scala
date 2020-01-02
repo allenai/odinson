@@ -185,6 +185,7 @@ object IndexDocuments extends App with LazyLogging {
     // FIXME these strings should probably be defined in the config, not hardcoded
     parent.add(new StringField("type", "parent", Store.NO))
     parent.add(new StringField("docId", docId, Store.YES))
+    implicit val formats = org.json4s.DefaultFormats
     parent.add(new StringField("md-json", compact(render(metadata)), Store.YES))
     metadata match {
       case JObject(fields) => {
