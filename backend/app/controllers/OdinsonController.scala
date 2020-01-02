@@ -24,7 +24,7 @@ import ai.lum.odinson.lucene.search.OdinsonScoreDoc
 import ai.lum.odinson.extra.DocUtils
 import ai.lum.odinson.lucene._
 import ai.lum.odinson.lucene.analysis.TokenStreamUtils
-import ai.lum.odinson.utils.ConfigFactoryz
+import ai.lum.odinson.utils.ConfigFactory
 @Singleton
 class OdinsonController @Inject()(system: ActorSystem, cc: ControllerComponents)
     extends AbstractController(cc) {
