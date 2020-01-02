@@ -29,6 +29,21 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
 
   }
 
+  def withParentIndex(testCode: ExtractorEngine => Any) {
+
+    val config = ConfigFactory.load()
+    val odinsonConfig = config[Config]("odinson")
+
+    val resourcesPath = getClass.getResource("/parent-index")
+    val index = FSDirectory.open(Paths.get(resourcesPath.getPath))
+    val engine = ExtractorEngine.fromDirectory(odinsonConfig, index)
+
+    try {
+      testCode(engine) // "loan" the fixture to the test
+    } finally index.close()
+
+  }
+
   "query" should "correctly return results when only an odinson query is defined" in withExtractorEngine {
     engine =>
       val results = engine.query(
@@ -50,6 +65,64 @@ class ExtractorEngineTest extends FlatSpec with Matchers {
       results.right.get.scoreDocs.length shouldBe 2
       results.right.get.scoreDocs.map(_.doc) contains 3
       results.right.get.scoreDocs.map(_.doc) contains 4
+  }
+
+  it should "correctly return results when only a parent query is defined" in withParentIndex {
+    engine =>
+      val results = engine.query(
+        ExtractionQueryParams.builder().setDocumentQuery("author:john"))
+
+      results.isRight shouldBe true
+      // there are three sentences with the word author john in the parent index (sentence ids: 0, 1 and 2)
+      results.right.get.scoreDocs.length shouldBe 3
+      results.right.get.scoreDocs.map(_.doc) contains 0
+      results.right.get.scoreDocs.map(_.doc) contains 1
+      results.right.get.scoreDocs.map(_.doc) contains 2
+  }
+
+  it should "correctly return results when a parent query and an odinson query are defined" in withParentIndex {
+    engine =>
+      val results = engine.query(
+        ExtractionQueryParams.builder()
+          .setDocumentQuery("author:john")
+          .setOdinsonQuery("[] >nsubj []"))
+
+      results.isRight shouldBe true
+      // there are three sentences with the word author john in the parent index (sentence ids: 0, 1 and 2), but only
+      // the first two contain nsubj
+      results.right.get.scoreDocs.length shouldBe 2
+      results.right.get.scoreDocs.map(_.doc) contains 0
+      results.right.get.scoreDocs.map(_.doc) contains 1
+  }
+
+  it should "correctly return results when a parent query and a sentence query are defined" in withParentIndex {
+    engine =>
+      val results = engine.query(
+        ExtractionQueryParams.builder()
+          .setDocumentQuery("author:john")
+          .setSentenceQuery("word: Microsoft"))
+
+      results.isRight shouldBe true
+      // there are three sentences with the word author john in the parent index (sentence ids: 0, 1 and 2), but only
+      // the third sentence contains the word Microsoft
+      results.right.get.scoreDocs.length shouldBe 1
+      results.right.get.scoreDocs.map(_.doc) contains 2
+  }
+
+  it should "correctly return results when a parent query a sentence query an Odinson query and a parent query are defined" in withParentIndex {
+    engine =>
+      val results = engine.query(
+        ExtractionQueryParams.builder()
+          .setDocumentQuery("author:john")
+          .setSentenceQuery("word: Google")
+          .setOdinsonQuery("[] >compound []")
+      )
+
+      results.isRight shouldBe true
+      // there are three sentences with the word author john in the parent index (sentence ids: 0, 1 and 2), but only
+      // the second sentence contains both the word Google and an edge labeled "compound"
+      results.right.get.scoreDocs.length shouldBe 1
+      results.right.get.scoreDocs.map(_.doc) contains 1
   }
 
   it should "correctly limit the results based on the numDocuments param" in withExtractorEngine {

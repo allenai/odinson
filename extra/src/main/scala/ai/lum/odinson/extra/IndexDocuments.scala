@@ -17,7 +17,7 @@ import ai.lum.common.Serializer
 import ai.lum.labrador.DocumentMetadata
 import ai.lum.odinson.lucene.analysis._
 import ai.lum.odinson.OdinsonIndexWriter
-
+import java.nio.charset.StandardCharsets.UTF_8
 import scala.util.{ Failure, Success, Try }
 
 
@@ -185,7 +185,7 @@ object IndexDocuments extends App with LazyLogging {
     // FIXME these strings should probably be defined in the config, not hardcoded
     parent.add(new StringField("type", "parent", Store.NO))
     parent.add(new StringField("docId", docId, Store.YES))
-
+    parent.add(new StringField("md-json", compact(render(metadata)), Store.YES))
     metadata match {
       case JObject(fields) => {
         for (field <- fields) {

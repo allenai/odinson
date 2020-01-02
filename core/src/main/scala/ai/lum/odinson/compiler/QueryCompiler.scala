@@ -1,11 +1,12 @@
 package ai.lum.odinson.compiler
 
 import java.io.File
+
 import org.apache.lucene.index._
 import org.apache.lucene.search._
 import org.apache.lucene.search.join._
 import org.apache.lucene.search.spans._
-import org.apache.lucene.queryparser.classic.{ QueryParser => LuceneQueryParser }
+import org.apache.lucene.queryparser.flexible.standard.{StandardQueryParser => LuceneQueryParser}
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer
 import com.typesafe.config.Config
 import ai.lum.common.ConfigUtils._
@@ -14,6 +15,8 @@ import ai.lum.odinson.lucene.search.spans._
 import ai.lum.odinson.digraph._
 import ai.lum.odinson.state.State
 import ai.lum.odinson.utils.ConfigFactory
+import org.apache.lucene.analysis.standard.StandardAnalyzer
+import org.apache.lucene.queryparser.flexible.standard.config.StandardQueryConfigHandler
 
 class QueryCompiler(
     val allTokenFields: Seq[String],
@@ -29,7 +32,7 @@ class QueryCompiler(
   val parser = new QueryParser(allTokenFields, defaultTokenField, normalizeQueriesToDefaultField)
 
   /** query parser for parent doc queries */
-  val queryParser = new LuceneQueryParser("docId", new WhitespaceAnalyzer)
+  val queryParser = new LuceneQueryParser(new StandardAnalyzer)
 
   private var state: Option[State] = None
 
@@ -43,13 +46,24 @@ class QueryCompiler(
     query.getOrElse(new FailQuery(defaultTokenField))
   }
 
+  def mkFilterQuery(query:Query, parentQuery: Query): Query = {
+    val termQuery = new TermQuery(new Term("type", "parent"))
+    val parentFilter = new QueryBitSetProducer(termQuery)
+    val filter = new ToChildBlockJoinQuery(parentQuery, parentFilter)
+    val bq = new (BooleanQuery.Builder)
+      .add(query, BooleanClause.Occur.MUST)
+      .add(filter, BooleanClause.Occur.FILTER)
+      .build()
+    bq
+  }
+
   def mkQuery(pattern: String): OdinsonQuery = {
     compile(pattern)
   }
 
   def mkQuery(pattern: String, parentPattern: String): OdinsonQuery = {
     val query = compile(pattern)
-    val parentQuery = queryParser.parse(parentPattern)
+    val parentQuery = queryParser.parse(parentPattern, "docId")
     mkQuery(query, parentQuery)
   }
 
@@ -59,7 +73,7 @@ class QueryCompiler(
   }
 
   def mkQuery(query: OdinsonQuery, parentPattern: String): OdinsonQuery = {
-    val parentQuery = queryParser.parse(parentPattern)
+    val parentQuery = queryParser.parse(parentPattern, "docId")
     mkQuery(query, parentQuery)
   }
 

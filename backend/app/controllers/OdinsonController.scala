@@ -24,13 +24,7 @@ import ai.lum.odinson.lucene.search.OdinsonScoreDoc
 import ai.lum.odinson.extra.DocUtils
 import ai.lum.odinson.lucene._
 import ai.lum.odinson.lucene.analysis.TokenStreamUtils
-import ai.lum.odinson.utils.ConfigFactory
-import org.apache.lucene.analysis.standard.StandardAnalyzer
-import org.apache.lucene.queryparser.classic.{
-  MultiFieldQueryParser,
-  QueryParser
-}
-import utils.DocumentMetadata
+import ai.lum.odinson.utils.ConfigFactoryz
 @Singleton
 class OdinsonController @Inject()(system: ActorSystem, cc: ControllerComponents)
     extends AbstractController(cc) {
@@ -124,59 +118,15 @@ class OdinsonController @Inject()(system: ActorSystem, cc: ControllerComponents)
     }
 
   // FIXME: add these fields to config under odinson.extra.
-  def getParentMetadata(docId: String): DocumentMetadata = {
+  def getParentMetadata(docId: String): String = {
     val parentDoc = extractorEngine.getParentDoc(docId)
-    val authors: Option[Seq[String]] = Try(
-      parentDoc.getFields("author").map(_.stringValue)) match {
-      case Success(v) => if (v.nonEmpty) Some(v) else None
-      case Failure(_) => None
-    }
-
-    val title
-      : Option[String] = Try(parentDoc.getField("title").stringValue) match {
-      case Success(v) => if (v.nonEmpty) Some(v) else None
-      case Failure(_) => None
-    }
-
-    val venue
-      : Option[String] = Try(parentDoc.getField("venue").stringValue) match {
-      case Success(v) => if (v.nonEmpty) Some(v) else None
-      case Failure(_) => None
-    }
-
-    val year: Option[Int] = Try(
-      parentDoc.getField("year").numericValue.intValue) match {
-      case Success(v) => Some(v)
-      case Failure(_) => None
-    }
-
-    val doi: Option[String] = Try(parentDoc.getField("doi").stringValue) match {
-      case Success(v) => if (v.nonEmpty) Some(v) else None
-      case Failure(_) => None
-    }
-
-    val url: Option[String] = Try(parentDoc.getField("url").stringValue) match {
-      case Success(v) => if (v.nonEmpty) Some(v) else None
-      case Failure(_) => None
-    }
-
-    DocumentMetadata(
-      docId = docId,
-      authors = authors,
-      title = title,
-      doi = doi,
-      url = url,
-      year = year,
-      venue = venue
-    )
+    parentDoc.getField("md-json").stringValue
   }
 
   def getParent(docId: String, pretty: Option[Boolean]) = Action.async {
     Future {
-      val jdata = getParentMetadata(docId)
-
-      implicit val metadataFormat = Json.format[DocumentMetadata]
-      val json = Json.toJson(jdata)
+      val jsonStr = getParentMetadata(docId)
+      val json = Json.parse(jsonStr)
       json.format(pretty)
     }(odinsonContext)
   }
