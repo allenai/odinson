@@ -180,7 +180,7 @@ class ExtractorEngine(
 
       val parentQuery = (extractionQuery.odinsonQuery,
         extractionQuery.documentLuceneQuery) match {
-        case (None, Some(dq)) => Some(compiler.queryParser.parse(dq, "docId"))
+        case (None, Some(dq)) => Some(compiler.queryParser.parse(dq))
         case _ => None
       }
 
