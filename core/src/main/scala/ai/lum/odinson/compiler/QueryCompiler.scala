@@ -1,6 +1,7 @@
 package ai.lum.odinson.compiler
 
 import java.io.File
+
 import org.apache.lucene.index._
 import org.apache.lucene.search._
 import org.apache.lucene.search.join._
@@ -41,6 +42,17 @@ class QueryCompiler(
     val ast = parser.parseQuery(pattern)
     val query = mkOdinsonQuery(ast)
     query.getOrElse(new FailQuery(defaultTokenField))
+  }
+
+  def mkFilterQuery(query:Query, parentQuery: Query): Query = {
+    val termQuery = new TermQuery(new Term("type", "parent"))
+    val parentFilter = new QueryBitSetProducer(termQuery)
+    val filter = new ToChildBlockJoinQuery(parentQuery, parentFilter)
+    val bq = new (BooleanQuery.Builder)
+      .add(query, BooleanClause.Occur.MUST)
+      .add(filter, BooleanClause.Occur.FILTER)
+      .build()
+    bq
   }
 
   def mkQuery(pattern: String): OdinsonQuery = {

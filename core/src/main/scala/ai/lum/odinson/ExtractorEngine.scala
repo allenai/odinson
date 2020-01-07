@@ -4,12 +4,7 @@ import java.nio.file.Path
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer
 import org.apache.lucene.document.{Document => LuceneDocument}
-import org.apache.lucene.search.{
-  MatchAllDocsQuery,
-  Query,
-  BooleanClause => LuceneBooleanClause,
-  BooleanQuery => LuceneBooleanQuery
-}
+import org.apache.lucene.search.{MatchAllDocsQuery, Query, BooleanClause => LuceneBooleanClause, BooleanQuery => LuceneBooleanQuery}
 import org.apache.lucene.store.{Directory, FSDirectory}
 import org.apache.lucene.index.DirectoryReader
 import org.apache.lucene.queryparser.classic.QueryParser
@@ -54,7 +49,7 @@ class ExtractorEngine(
     val q1 =
       new QueryParser(parentDocIdField, analyzer).parse(s""""$sterileDocID"""")
     booleanQuery.add(q1, LuceneBooleanClause.Occur.MUST)
-    val q2 = new QueryParser("type", analyzer).parse("root")
+    val q2 = new QueryParser("type", analyzer).parse("parent")
     booleanQuery.add(q2, LuceneBooleanClause.Occur.MUST)
     val q = booleanQuery.build
     val docs = indexSearcher
@@ -171,9 +166,7 @@ class ExtractorEngine(
         case (None, None)         => None
         case (Some(oq), Some(dq)) => Some(compiler.mkQuery(oq, dq))
         case (Some(oq), None)     => Some(compiler.mkQuery(oq))
-        case _ =>
-          throw new IllegalArgumentException(
-            "Document query can not be defined without a corresponding odinson query")
+        case (None, Some(dq)) => None
       }
 
       // parse sentence query
@@ -185,16 +178,26 @@ class ExtractorEngine(
         queryParser.parse(sq)
       }
 
+      val parentQuery = (extractionQuery.odinsonQuery,
+        extractionQuery.documentLuceneQuery) match {
+        case (None, Some(dq)) => Some(compiler.queryParser.parse(dq))
+        case _ => None
+      }
+
       // final combine of all query parts to create a single lucene query
-      val fullQuery = (odinsonQuery, sentenceQuery) match {
-        case (Some(oq), Some(sq)) =>
+      val fullQuery = (odinsonQuery, sentenceQuery, parentQuery) match {
+        case (Some(oq), Some(sq), None) =>
           new OdinsonFilteredQuery(oq, sq)
-        case (None, Some(sq)) =>
+        case (Some(oq), None, None) => oq
+        case (None, Some(sq), None) =>
           sq // TODO: convert to some kind of odinson query
-        case (Some(oq), None) => oq
+        case (None, Some(sq), Some(dq)) =>
+          compiler.mkFilterQuery(sq, dq)
+        case (None, None, Some(dq)) =>
+          compiler.mkFilterQuery(new MatchAllDocsQuery, dq)
         case _ =>
           throw new IllegalArgumentException(
-            "Either odinson query or a sentence query have to be defined")
+            "Either odinson query, a parent query or a sentence query have to be defined")
       }
 
       val numberOfDocuments = extractionQuery.numDocuments.getOrElse(numDocs())

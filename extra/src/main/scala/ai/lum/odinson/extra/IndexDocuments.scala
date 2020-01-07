@@ -17,7 +17,6 @@ import ai.lum.common.Serializer
 import ai.lum.labrador.DocumentMetadata
 import ai.lum.odinson.lucene.analysis._
 import ai.lum.odinson.OdinsonIndexWriter
-
 import scala.util.{ Failure, Success, Try }
 
 
@@ -50,29 +49,30 @@ object IndexDocuments extends App with LazyLogging {
   val writer = OdinsonIndexWriter.fromConfig()
 
   // serialized org.clulab.processors.Document or Document json
-  val SUPPORTED_EXTENSIONS = "(?i).*?\\.(ser|json)$"
+  val SUPPORTED_EXTENSIONS = "(?i).*?\\.(ser|json|jsonl)$"
   // NOTE indexes the documents in parallel
   // FIXME: groupBy by extension-less basename?
 
   val documentFiles = if (synchronizeOrderWithDocumentId) {
     // files ordered by the id of the document
     docsDir.listFilesByRegex(SUPPORTED_EXTENSIONS, recursive = true)
-           .withFilter(f => !f.getName.endsWith(".metadata.ser"))
-           .map(f => (deserializeDoc(f)._1.id.map(_.toInt), f))
-           .toSeq
-           .sortBy(_._1)
-           .map(_._2)
+      .withFilter(f => !f.getName.endsWith(".metadata.ser"))
+      .map(f => (deserializeDocs(f)(0)._1.id.map(_.toInt), f))
+      .toSeq
+      .sortBy(_._1)
+      .map(_._2)
   } else {
     docsDir.listFilesByRegex(SUPPORTED_EXTENSIONS, recursive = true)
-           .toSeq.par
-           .withFilter(f => !f.getName.endsWith(".metadata.ser"))
+      .toSeq.par
+      .withFilter(f => !f.getName.endsWith(".metadata.ser"))
   }
 
   documentFiles.foreach{ f =>
     Try {
-      val (doc, md) = deserializeDoc(f)
-      val block = mkDocumentBlock(doc, md)
-      writer.addDocuments(block)
+      deserializeDocs(f).foreach(r => {
+        val block = mkDocumentBlock(r._1, r._2)
+        writer.addDocuments(block)
+      })
     } match {
       case Success(_) =>
         logger.info(s"Indexed ${f.getName}")
@@ -87,10 +87,26 @@ object IndexDocuments extends App with LazyLogging {
   // fin
 
 
-  def deserializeDoc(f: File): (ProcessorsDocument, Option[DocumentMetadata]) = f.getName.toLowerCase match {
+  def deserializeDocs(f: File): Seq[(ProcessorsDocument, JValue)] = f.getName.toLowerCase match {
+    case jsonl if jsonl.endsWith(".jsonl") =>
+      val source = scala.io.Source.fromFile(f)
+      val docs = source.getLines.map(l => {
+        val jast = parse(l)
+        val metadata = jast \ "metadata"
+        val doc = JSONSerializer.toDocument(jast)
+        (doc, metadata)
+      }).toList
+      source.close()
+      docs
+
     case json if json.endsWith(".json") =>
-      val doc = JSONSerializer.toDocument(f)
-      (doc, None)
+      val source = scala.io.Source.fromFile(f)
+      val docJson = parse(source.getLines.mkString)
+
+      source.close()
+      val doc = JSONSerializer.toDocument(docJson)
+      val metadata = docJson \ "metadata"
+      List((doc, metadata))
     case ser if ser.endsWith(".ser") =>
       val doc = Serializer.deserialize[ProcessorsDocument](f)
       val md: Option[DocumentMetadata] = {
@@ -99,13 +115,15 @@ object IndexDocuments extends App with LazyLogging {
           Some(Serializer.deserialize[DocumentMetadata](mdFile))
         } else None
       }
-      (doc, md)
+      List((doc, JNothing))
       // NOTE: we're assuming this is
     case gz if gz.endsWith("json.gz") =>
       val contents: String = GzipUtils.uncompress(f)
       val jast = parse(contents)
+      val metadata = jast \ "metadata"
       val doc = JSONSerializer.toDocument(jast)
-      (doc, None)
+
+      List((doc, metadata))
     case other =>
       throw new Exception(s"Cannot deserialize ${f.getName} to org.clulab.processors.Document. Unsupported extension '$other'")
   }
@@ -115,7 +133,7 @@ object IndexDocuments extends App with LazyLogging {
   }
 
   // generates a lucene document per sentence
-  def mkDocumentBlock(d: ProcessorsDocument, metadata: Option[DocumentMetadata]): Seq[Document] = {
+  def mkDocumentBlock(d: ProcessorsDocument, metadata: JValue): Seq[Document] = {
     // FIXME what should we do if the document has no id?
     val docId = d.id.getOrElse(generateUUID)
 
@@ -131,45 +149,66 @@ object IndexDocuments extends App with LazyLogging {
     block
   }
 
-  def mkParentDoc(docId: String, metadata: Option[DocumentMetadata]): Document = {
+  def indexKeyValueField(parent: Document, key: String, value: JValue): Unit ={
+    value match {
+      case JString(s) => {
+        parent.add(new TextField(key, s, Store.YES))
+      }
+      case JLong(l) => {
+        parent.add(new LongPoint(key, l))
+        parent.add(new StoredField(key, l))
+      }
+      case JInt(i) => { // i is BigInteger, we truncate to int.
+        parent.add(new IntPoint(key, i.toInt))
+        parent.add(new StoredField(key, i.toInt))
+      }
+      case JDouble(d) => {
+        parent.add(new DoublePoint(key, d))
+        parent.add(new StoredField(key, d))
+      }
+      case JDecimal(f) => { // d is BigDecimal, we truncate to float.
+        parent.add(new FloatPoint(key, f.toFloat))
+        parent.add(new StoredField(key, f.toFloat))
+      }
+      case JBool(b) => {
+        parent.add(new TextField(key, b.toString, Store.YES))
+      }
+      case _ => {
+        logger.warn("Field skipped (type not supported): " + value.toString)
+      }
+    }
+  }
+
+  def mkParentDoc(docId: String, metadata: JValue): Document = {
     val parent = new Document
     // FIXME these strings should probably be defined in the config, not hardcoded
     parent.add(new StringField("type", "parent", Store.NO))
     parent.add(new StringField("docId", docId, Store.YES))
-
-    if (metadata.nonEmpty) {
-      val md = metadata.get
-
-      val authors: Seq[String]    = md.authors.map{ a => s"${a.givenName} ${a.surName}" }
-      val     doi: Option[String] = md.doi.map(_.doi)
-      val     url: Option[String] = if (md.doi.nonEmpty) {
-        md.doi.get.url
-      } else if (md.pmid.nonEmpty) {
-        md.pmid.get.url
-      } else {
-        None
+    implicit val formats = org.json4s.DefaultFormats
+    parent.add(new StringField("md-json", compact(render(metadata)), Store.YES))
+    metadata match {
+      case JObject(fields) => {
+        for (field <- fields) {
+          if (field._1 == "type" || field._1 == "docId") {
+            logger.warn("\"type\" and \"docId\" are reserved fields and will be ignored. Use differently named fields if needed.")
+          } else {
+            field._2 match {
+              case JArray(values) => {
+                for (elem <- values) {
+                  indexKeyValueField(parent, field._1, elem)
+                }
+              }
+              case _ => {
+                indexKeyValueField(parent, field._1, field._2)
+              }
+            }
+          }
+        }
       }
-
-      val pubYear: Option[Int]    = md.publicationDate match {
-        case None => None
-        case Some(pd) => pd.year
+      case JNothing =>
+      case _ => {
+        logger.warn("Metadata skipped (bad format: not an object)")
       }
-
-      authors.foreach{ author: String => parent.add( new TextField("author", author, Store.YES)) }
-      md.title.foreach(title => parent.add( new TextField("title", title, Store.YES)))
-      // FIXME: should this be stored?
-      md.journal.foreach(v => parent.add( new TextField("venue", v, Store.YES)))
-      // FIXME: should this be stored?
-      pubYear.foreach{ y =>
-        parent.add( new IntPoint("year", y))
-        parent.add( new StoredField("year", y))
-      }
-      // FIXME: should this be stored?
-      doi.foreach(doi => parent.add( new TextField("doi", doi, Store.YES)))
-      url.foreach { url =>
-        parent.add( new TextField("url", url, Store.YES))
-      }
-
     }
 
     parent
