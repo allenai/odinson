@@ -17,7 +17,6 @@ import ai.lum.common.Serializer
 import ai.lum.labrador.DocumentMetadata
 import ai.lum.odinson.lucene.analysis._
 import ai.lum.odinson.OdinsonIndexWriter
-import java.nio.charset.StandardCharsets.UTF_8
 import scala.util.{ Failure, Success, Try }
 
 
