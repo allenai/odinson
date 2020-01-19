@@ -10,6 +10,7 @@ import ai.lum.odinson.extra.IndexDocuments.mkParentDoc
 import ai.lum.odinson.extra.IndexDocuments.deserializeDocs
 import ai.lum.odinson.utils.ConfigFactory
 import com.typesafe.config.Config
+import org.apache.lucene.index.{IndexOptions, IndexableFieldType}
 import org.apache.lucene.store.FSDirectory
 import org.json4s.JsonAST._
 class IndexDocumentsTest extends FlatSpec with Matchers {
@@ -22,14 +23,21 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
 
   "mkParentDoc" should "return a document with simple metadata fields" in  {
     val parentDoc = mkParentDoc("001", JObject(List(
-      ("author", JString("John")),
+      ("author_", JString("John")),
+      ("title", JString("Lucene tips and tricks")),
       ("yearlong", JLong(1981)),
       ("yearint", JInt(1981)),
       ("costdouble", JDouble(30.4)),
       ("costdecimal", JDecimal(30.4)),
       ("free", JBool(false))
     )))
+
+    // We expect the author field to be added without the trailiing underscore (indicating a string value field)
     parentDoc.getField("author").stringValue shouldBe "John"
+    print(parentDoc.getField("author").fieldType.indexOptions)
+    parentDoc.getField("author").fieldType.tokenized shouldBe false
+    parentDoc.getField("title").stringValue shouldBe "Lucene tips and tricks"
+    parentDoc.getField("title").fieldType.tokenized shouldBe true
     parentDoc.getField("yearlong").numericValue shouldBe 1981l
     parentDoc.getField("yearint").numericValue shouldBe 1981
     parentDoc.getField("costdouble").numericValue shouldBe 30.4

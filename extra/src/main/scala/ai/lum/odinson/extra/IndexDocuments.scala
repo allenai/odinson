@@ -152,7 +152,11 @@ object IndexDocuments extends App with LazyLogging {
   def indexKeyValueField(parent: Document, key: String, value: JValue): Unit ={
     value match {
       case JString(s) => {
-        parent.add(new TextField(key, s, Store.YES))
+        if (key.endsWith("_")) {
+          parent.add(new StringField(key.dropRight(1), s, Store.YES))
+        } else {
+          parent.add(new TextField(key, s, Store.YES))
+        }
       }
       case JLong(l) => {
         parent.add(new LongPoint(key, l))
