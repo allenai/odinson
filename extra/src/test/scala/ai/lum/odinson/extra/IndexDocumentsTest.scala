@@ -34,7 +34,6 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
 
     // We expect the author field to be added without the trailiing underscore (indicating a string value field)
     parentDoc.getField("author").stringValue shouldBe "John"
-    print(parentDoc.getField("author").fieldType.indexOptions)
     parentDoc.getField("author").fieldType.tokenized shouldBe false
     parentDoc.getField("title").stringValue shouldBe "Lucene tips and tricks"
     parentDoc.getField("title").fieldType.tokenized shouldBe true
