@@ -23,7 +23,7 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
 
   "mkParentDoc" should "return a document with simple metadata fields" in  {
     val parentDoc = mkParentDoc("001", JObject(List(
-      ("author_", JString("John")),
+      ("author", JString("John")),
       ("title", JString("Lucene tips and tricks")),
       ("yearlong", JLong(1981)),
       ("yearint", JInt(1981)),
@@ -34,7 +34,6 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
 
     // We expect the author field to be added without the trailiing underscore (indicating a string value field)
     parentDoc.getField("author").stringValue shouldBe "John"
-    parentDoc.getField("author").fieldType.tokenized shouldBe false
     parentDoc.getField("title").stringValue shouldBe "Lucene tips and tricks"
     parentDoc.getField("title").fieldType.tokenized shouldBe true
     parentDoc.getField("yearlong").numericValue shouldBe 1981l
