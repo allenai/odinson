@@ -140,7 +140,7 @@ object IndexDocuments extends App with LazyLogging {
     val block = ArrayBuffer.empty[Document]
     for ((s, i) <- d.sentences.zipWithIndex) {
       if (s.size <= maxNumberOfTokensPerSentence) {
-        block += mkSentenceDoc(s, docId, i.toString)
+        block += mkSentenceDoc(s, docId, i.toString, metadata)
       } else {
         logger.warn(s"skipping sentence with ${s.size} tokens")
       }
@@ -149,33 +149,29 @@ object IndexDocuments extends App with LazyLogging {
     block
   }
 
-  def indexKeyValueField(parent: Document, key: String, value: JValue): Unit ={
+  def indexKeyValueField(doc: Document, key: String, value: JValue): Unit ={
     value match {
       case JString(s) => {
-        if (key.endsWith("_")) {
-          parent.add(new StringField(key.dropRight(1), s, Store.YES))
-        } else {
-          parent.add(new TextField(key, s, Store.YES))
-        }
+        doc.add(new TextField(key, s, Store.YES))
       }
       case JLong(l) => {
-        parent.add(new LongPoint(key, l))
-        parent.add(new StoredField(key, l))
+        doc.add(new LongPoint(key, l))
+        doc.add(new StoredField(key, l))
       }
       case JInt(i) => { // i is BigInteger, we truncate to int.
-        parent.add(new IntPoint(key, i.toInt))
-        parent.add(new StoredField(key, i.toInt))
+        doc.add(new IntPoint(key, i.toInt))
+        doc.add(new StoredField(key, i.toInt))
       }
       case JDouble(d) => {
-        parent.add(new DoublePoint(key, d))
-        parent.add(new StoredField(key, d))
+        doc.add(new DoublePoint(key, d))
+        doc.add(new StoredField(key, d))
       }
       case JDecimal(f) => { // d is BigDecimal, we truncate to float.
-        parent.add(new FloatPoint(key, f.toFloat))
-        parent.add(new StoredField(key, f.toFloat))
+        doc.add(new FloatPoint(key, f.toFloat))
+        doc.add(new StoredField(key, f.toFloat))
       }
       case JBool(b) => {
-        parent.add(new TextField(key, b.toString, Store.YES))
+        doc.add(new TextField(key, b.toString, Store.YES))
       }
       case _ => {
         logger.warn("Field skipped (type not supported): " + value.toString)
@@ -196,16 +192,7 @@ object IndexDocuments extends App with LazyLogging {
           if (field._1 == "type" || field._1 == "docId") {
             logger.warn("\"type\" and \"docId\" are reserved fields and will be ignored. Use differently named fields if needed.")
           } else {
-            field._2 match {
-              case JArray(values) => {
-                for (elem <- values) {
-                  indexKeyValueField(parent, field._1, elem)
-                }
-              }
-              case _ => {
-                indexKeyValueField(parent, field._1, field._2)
-              }
-            }
+            indexMetadataField(parent, field)
           }
         }
       }
@@ -218,8 +205,34 @@ object IndexDocuments extends App with LazyLogging {
     parent
   }
 
-  def mkSentenceDoc(s: Sentence, docId: String, sentId: String): Document = {
+  def indexMetadataField(doc: Document, field: JField): Unit = {
+      field._2 match {
+        case JArray(values) => {
+          for (elem <- values) {
+            indexKeyValueField(doc, field._1, elem)
+          }
+        }
+        case _ => {
+          indexKeyValueField(doc, field._1, field._2)
+        }
+      }
+  }
+
+  def mkSentenceDoc(s: Sentence, docId: String, sentId: String, metadata: JValue): Document = {
     val sent = new Document
+    metadata match {
+      case JObject(fields) => {
+        for (field <- fields) {
+          if (field._1.endsWith("_")) {
+            indexMetadataField(sent, field)
+          }
+        }
+      }
+      case JNothing =>
+      case _ => {
+        logger.warn("Metadata skipped at sentence level (bad format: not an object)")
+      }
+    }
     sent.add(new StoredField(documentIdField, docId))
     sent.add(new StoredField(sentenceIdField, sentId))
     sent.add(new NumericDocValuesField(sentenceLengthField, s.size.toLong))
