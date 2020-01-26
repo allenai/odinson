@@ -1,12 +1,15 @@
 package ai.lum.odinson.compiler
 
 import java.io.File
+import java.text.NumberFormat
+import java.util.Locale
 
 import org.apache.lucene.index._
 import org.apache.lucene.search._
 import org.apache.lucene.search.join._
 import org.apache.lucene.search.spans._
-import org.apache.lucene.queryparser.classic.{ QueryParser => LuceneQueryParser }
+import org.apache.lucene.queryparser.classic.{QueryParser => LuceneQueryParser}
+import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer
 import com.typesafe.config.Config
 import ai.lum.common.ConfigUtils._
@@ -15,7 +18,9 @@ import ai.lum.odinson.lucene.search.spans._
 import ai.lum.odinson.digraph._
 import ai.lum.odinson.state.State
 import ai.lum.odinson.utils.ConfigFactory
-
+import org.apache.lucene.document.FieldType
+import scala.collection.JavaConverters._
+import org.apache.lucene.queryparser.flexible.standard.config.PointsConfig
 class QueryCompiler(
     val allTokenFields: Seq[String],
     val defaultTokenField: String,
@@ -31,6 +36,12 @@ class QueryCompiler(
 
   /** query parser for parent doc queries */
   val queryParser = new LuceneQueryParser("docId", new WhitespaceAnalyzer)
+
+  val parentQueryParser = new StandardQueryParser(new WhitespaceAnalyzer)
+
+
+  val numericConfig = new PointsConfig(NumberFormat.getNumberInstance(Locale.ENGLISH), classOf[java.lang.Integer])
+  parentQueryParser.setPointsConfigMap(Map("year" -> numericConfig).asJava)
 
   private var state: Option[State] = None
 
@@ -61,7 +72,7 @@ class QueryCompiler(
 
   def mkQuery(pattern: String, parentPattern: String): OdinsonQuery = {
     val query = compile(pattern)
-    val parentQuery = queryParser.parse(parentPattern)
+    val parentQuery = parentQueryParser.parse(parentPattern, "docId")
     mkQuery(query, parentQuery)
   }
 
@@ -71,7 +82,7 @@ class QueryCompiler(
   }
 
   def mkQuery(query: OdinsonQuery, parentPattern: String): OdinsonQuery = {
-    val parentQuery = queryParser.parse(parentPattern)
+    val parentQuery = parentQueryParser.parse(parentPattern, "docId")
     mkQuery(query, parentQuery)
   }
 
