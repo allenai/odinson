@@ -332,7 +332,8 @@ class OdinsonController @Inject()(system: ActorSystem, cc: ControllerComponents)
       "documentId" -> getDocId(odinsonScoreDoc.doc),
       "sentenceIndex" -> getSentenceIndex(odinsonScoreDoc.doc),
       "sentence" -> mkAbridgedSentence(odinsonScoreDoc.doc),
-      "matches" -> Json.arr(odinsonScoreDoc.matches.map(mkJson): _*)
+      "matches" -> Json.arr(odinsonScoreDoc.matches.map(mkJson): _*),
+      "md-json" -> mkSentenceMetadata(odinsonScoreDoc.doc)
     )
   }
 
@@ -347,4 +348,13 @@ class OdinsonController @Inject()(system: ActorSystem, cc: ControllerComponents)
     unabridgedJson.as[JsObject] - "startOffsets" - "endOffsets" - "raw"
   }
 
+  def mkSentenceMetadata(odinsonDocId: Int): JsValue = {
+    val sent = extractorEngine.indexSearcher.doc(odinsonDocId)
+    var metadataJsonStr =  "{}"
+    if (sent.getValues("md-json").nonEmpty) {
+      metadataJsonStr = sent.getValues("md-json").head
+    }
+    val metadataJson = Json.parse(metadataJsonStr)
+    metadataJson.as[JsObject]
+  }
 }

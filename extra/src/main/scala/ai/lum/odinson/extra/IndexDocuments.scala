@@ -220,19 +220,24 @@ object IndexDocuments extends App with LazyLogging {
 
   def mkSentenceDoc(s: Sentence, docId: String, sentId: String, metadata: JValue): Document = {
     val sent = new Document
-    metadata match {
+    val sentenceMetadata = metadata match {
       case JObject(fields) => {
-        for (field <- fields) {
-          if (field._1.endsWith("_")) {
-            indexMetadataField(sent, field)
-          }
-        }
+        JObject(fields.filter(_._1.endsWith("_")))
+      }
+      case _ => JNothing
+
+    }
+    sentenceMetadata match {
+      case JObject(fields) => {
+        implicit val formats = org.json4s.DefaultFormats
+        sent.add(new StringField("md-json", compact(render(sentenceMetadata)), Store.YES))
       }
       case JNothing =>
       case _ => {
         logger.warn("Metadata skipped at sentence level (bad format: not an object)")
       }
     }
+
     sent.add(new StoredField(documentIdField, docId))
     sent.add(new StoredField(sentenceIdField, sentId))
     sent.add(new NumericDocValuesField(sentenceLengthField, s.size.toLong))
