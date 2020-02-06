@@ -39,7 +39,7 @@ class QueryCompiler(
 
   val parentQueryParser = new StandardQueryParser(new WhitespaceAnalyzer)
 
-
+  //todo: this is a nasty hack: it hard codes the parentQueryParser to treat year as Integer. This should be minimally read from config.
   val numericConfig = new PointsConfig(NumberFormat.getNumberInstance(Locale.ENGLISH), classOf[java.lang.Integer])
   parentQueryParser.setPointsConfigMap(Map("year" -> numericConfig).asJava)
 
