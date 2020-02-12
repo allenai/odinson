@@ -17,8 +17,6 @@ import ai.lum.odinson.lucene.search._
 import ai.lum.odinson.lucene.search.spans._
 import ai.lum.odinson.digraph._
 import ai.lum.odinson.state.State
-import ai.lum.odinson.utils.ConfigFactory
-import org.apache.lucene.document.FieldType
 import scala.collection.JavaConverters._
 import org.apache.lucene.queryparser.flexible.standard.config.PointsConfig
 class QueryCompiler(
@@ -31,6 +29,7 @@ class QueryCompiler(
     val dependenciesVocabulary: Vocabulary,
     val normalizeQueriesToDefaultField: Boolean,
     val metadataTypeOverride: Map[String, String],
+    val defaultParentField: String,
 ) {
 
   val parser = new QueryParser(allTokenFields, defaultTokenField, normalizeQueriesToDefaultField)
@@ -62,6 +61,10 @@ class QueryCompiler(
     query.getOrElse(new FailQuery(defaultTokenField))
   }
 
+  def compileParentQuery(query: String): Query = {
+    parentQueryParser.parse(query, defaultParentField)
+  }
+
   def mkFilterQuery(query:Query, parentQuery: Query): Query = {
     val termQuery = new TermQuery(new Term("type", "parent"))
     val parentFilter = new QueryBitSetProducer(termQuery)
@@ -79,7 +82,7 @@ class QueryCompiler(
 
   def mkQuery(pattern: String, parentPattern: String): OdinsonQuery = {
     val query = compile(pattern)
-    val parentQuery = parentQueryParser.parse(parentPattern, "docId")
+    val parentQuery = parentQueryParser.parse(parentPattern, defaultParentField)
     mkQuery(query, parentQuery)
   }
 
@@ -89,7 +92,7 @@ class QueryCompiler(
   }
 
   def mkQuery(query: OdinsonQuery, parentPattern: String): OdinsonQuery = {
-    val parentQuery = parentQueryParser.parse(parentPattern, "docId")
+    val parentQuery = parentQueryParser.parse(parentPattern, defaultParentField)
     mkQuery(query, parentQuery)
   }
 
@@ -454,7 +457,13 @@ object QueryCompiler {
       config[String]("compiler.outgoingTokenField"),
       vocabulary,
       config[Boolean]("compiler.normalizeQueriesToDefaultField"),
-      config.getObject("compiler.metadataTypeOverride").keySet.asScala.map(key => key -> config.getString("compiler.metadataTypeOverride." +key)).toMap
+
+      // Read compiler.metadataTypeOverride as Map[String, String]
+      config.getObject("compiler.metadataTypeOverride").keySet.asScala.map
+      (
+        key => key -> config.getString(s"compiler.metadataTypeOverride.$key")
+      ).toMap,
+      config[String]("compiler.defaultParentField")
     )
   }
 
