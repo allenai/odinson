@@ -218,8 +218,14 @@ object IndexDocuments extends App with LazyLogging {
       }
   }
 
-  def mkSentenceDoc(s: Sentence, docId: String, sentId: String, metadata: JValue): Document = {
-    val sent = new Document
+  /**
+    * Adds metadata to a sentence doc based on the metadata of the parent document
+    *
+    * the metadata is added as a json object string which contains the parent metadata fields which end with "_"
+    * @param sentDoc the lucene sentence doc to which we want to add metadata
+    * @param metadata the json metadata taken from the parent doc
+    */
+  def addSentenceMetadata(sentDoc: Document, metadata: JValue): Unit = {
     val sentenceMetadata = metadata match {
       case JObject(fields) => {
         JObject(fields.filter(_._1.endsWith("_")))
@@ -230,13 +236,18 @@ object IndexDocuments extends App with LazyLogging {
     sentenceMetadata match {
       case JObject(fields) => {
         implicit val formats = org.json4s.DefaultFormats
-        sent.add(new StringField("md-json", compact(render(sentenceMetadata)), Store.YES))
+        sentDoc.add(new StringField("md-json", compact(render(sentenceMetadata)), Store.YES))
       }
       case JNothing =>
       case _ => {
         logger.warn("Metadata skipped at sentence level (bad format: not an object)")
       }
     }
+  }
+
+  def mkSentenceDoc(s: Sentence, docId: String, sentId: String, metadata: JValue): Document = {
+    val sent = new Document
+    addSentenceMetadata(sent, metadata)
 
     sent.add(new StoredField(documentIdField, docId))
     sent.add(new StoredField(sentenceIdField, sentId))

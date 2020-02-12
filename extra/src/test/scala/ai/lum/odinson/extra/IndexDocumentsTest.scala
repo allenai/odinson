@@ -1,17 +1,13 @@
 package ai.lum.odinson.extra
 
 import java.io.File
-import java.nio.file.Paths
 
-import ai.lum.odinson.extra.IndexDocuments
-import ai.lum.odinson.{ExtractionQueryParams, ExtractorEngine}
 import org.scalatest.{FlatSpec, Matchers}
 import ai.lum.odinson.extra.IndexDocuments.mkParentDoc
+import ai.lum.odinson.extra.IndexDocuments.addSentenceMetadata
 import ai.lum.odinson.extra.IndexDocuments.deserializeDocs
-import ai.lum.odinson.utils.ConfigFactory
-import com.typesafe.config.Config
-import org.apache.lucene.index.{IndexOptions, IndexableFieldType}
-import org.apache.lucene.store.FSDirectory
+import org.apache.lucene.document.Document
+import org.json4s.JNothing
 import org.json4s.JsonAST._
 class IndexDocumentsTest extends FlatSpec with Matchers {
 
@@ -50,6 +46,30 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
     parentDoc.getFields("author").size shouldBe 2
     parentDoc.getFields("author")(0).stringValue shouldBe "John"
     parentDoc.getFields("author")(1).stringValue shouldBe "Jeff"
+  }
+
+
+  "addSentenceMetadata" should "return a document with a metadata field which includes only fields with underscore" in {
+    val sentenceDoc = new Document
+    addSentenceMetadata(sentenceDoc,
+      JObject(List(
+        ("author", JString("John")),
+        ("title_", JString("Lucene tips and tricks")),
+        ("yearlong", JLong(1981)),
+        ("yearint", JInt(1981)),
+        ("costdouble", JDouble(30.4)),
+        ("costdecimal", JDecimal(30.4)),
+        ("free", JBool(false))
+      )))
+
+    // Make sure that we index only metadata fields that end with "_"
+    sentenceDoc.getField("md-json").stringValue shouldBe "{\"title_\":\"Lucene tips and tricks\"}"
+  }
+  "addSentenceMetadata" should "return a document with no metadata field" in {
+
+    val sentenceDoc = new Document
+    addSentenceMetadata(sentenceDoc, JNothing)
+    sentenceDoc.getField("md-json") shouldBe null
   }
 
   "deserializeDocs" should "read the .json file and return a document with metadata"  in {
