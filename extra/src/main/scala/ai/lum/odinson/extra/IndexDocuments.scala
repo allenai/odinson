@@ -152,26 +152,22 @@ object IndexDocuments extends App with LazyLogging {
   def indexKeyValueField(doc: Document, key: String, value: JValue): Unit ={
     value match {
       case JString(s) => {
-        doc.add(new TextField(key, s, Store.YES))
+        doc.add(new TextField(key, s, Store.NO))
       }
       case JLong(l) => {
         doc.add(new LongPoint(key, l))
-        doc.add(new StoredField(key, l))
       }
       case JInt(i) => { // i is BigInteger, we truncate to int.
         doc.add(new IntPoint(key, i.toInt))
-        doc.add(new StoredField(key, i.toInt))
       }
       case JDouble(d) => {
         doc.add(new DoublePoint(key, d))
-        doc.add(new StoredField(key, d))
       }
       case JDecimal(f) => { // d is BigDecimal, we truncate to float.
         doc.add(new FloatPoint(key, f.toFloat))
-        doc.add(new StoredField(key, f.toFloat))
       }
       case JBool(b) => {
-        doc.add(new TextField(key, b.toString, Store.YES))
+        doc.add(new TextField(key, b.toString, Store.NO))
       }
       case _ => {
         logger.warn("Field skipped (type not supported): " + value.toString)
