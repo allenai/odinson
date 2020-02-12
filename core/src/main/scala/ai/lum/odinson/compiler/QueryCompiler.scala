@@ -29,7 +29,8 @@ class QueryCompiler(
     val incomingTokenField: String,
     val outgoingTokenField: String,
     val dependenciesVocabulary: Vocabulary,
-    val normalizeQueriesToDefaultField: Boolean
+    val normalizeQueriesToDefaultField: Boolean,
+    val metadataTypeOverride: Map[String, String],
 ) {
 
   val parser = new QueryParser(allTokenFields, defaultTokenField, normalizeQueriesToDefaultField)
@@ -39,9 +40,15 @@ class QueryCompiler(
 
   val parentQueryParser = new StandardQueryParser(new WhitespaceAnalyzer)
 
-  //todo: this is a nasty hack: it hard codes the parentQueryParser to treat year as Integer. This should be minimally read from config.
+  // the parent query parser needs to know which metadata fields are numeric (otherwise it assume strings)
+  // we set the configuration in core/main/resources/reference.conf and can override it from the CLI.
+  // By default we we set the type overrides in reference.conf to treat year as Integer, but if we want to treat it as
+  // string we can run: sbt -Dodinson.compiler.metadataTypeOverride.year=String  ";project backend;run"
   val numericConfig = new PointsConfig(NumberFormat.getNumberInstance(Locale.ENGLISH), classOf[java.lang.Integer])
-  parentQueryParser.setPointsConfigMap(Map("year" -> numericConfig).asJava)
+  metadataTypeOverride.foreach {
+    case(fieldName, "Integer") => parentQueryParser.setPointsConfigMap(Map(fieldName -> numericConfig).asJava)
+    case _ =>
+  }
 
   private var state: Option[State] = None
 
@@ -446,7 +453,8 @@ object QueryCompiler {
       config[String]("compiler.incomingTokenField"),
       config[String]("compiler.outgoingTokenField"),
       vocabulary,
-      config[Boolean]("compiler.normalizeQueriesToDefaultField")
+      config[Boolean]("compiler.normalizeQueriesToDefaultField"),
+      config.getObject("compiler.metadataTypeOverride").keySet.asScala.map(key => key -> config.getString("compiler.metadataTypeOverride." +key)).toMap
     )
   }
 

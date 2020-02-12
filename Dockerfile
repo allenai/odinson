@@ -30,8 +30,6 @@ FROM openjdk:8u212-jdk-stretch
 WORKDIR /local
 RUN mkdir /local/data
 
-# by default we build an image with tacred. To build with KBP pass --build-arg user=kbp-odinson-index-ordered-24092019
-# to docker build.
 COPY --from=builder /local/backend/target/universal/stage/ /local
 COPY --from=builder /local/scripts /local/scripts
 
