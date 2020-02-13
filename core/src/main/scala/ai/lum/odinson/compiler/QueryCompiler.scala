@@ -1,12 +1,15 @@
 package ai.lum.odinson.compiler
 
 import java.io.File
+import java.text.NumberFormat
+import java.util.Locale
 
 import org.apache.lucene.index._
 import org.apache.lucene.search._
 import org.apache.lucene.search.join._
 import org.apache.lucene.search.spans._
-import org.apache.lucene.queryparser.classic.{ QueryParser => LuceneQueryParser }
+import org.apache.lucene.queryparser.classic.{QueryParser => LuceneQueryParser}
+import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer
 import com.typesafe.config.Config
 import ai.lum.common.ConfigUtils._
@@ -14,8 +17,8 @@ import ai.lum.odinson.lucene.search._
 import ai.lum.odinson.lucene.search.spans._
 import ai.lum.odinson.digraph._
 import ai.lum.odinson.state.State
-import ai.lum.odinson.utils.ConfigFactory
-
+import scala.collection.JavaConverters._
+import org.apache.lucene.queryparser.flexible.standard.config.PointsConfig
 class QueryCompiler(
     val allTokenFields: Seq[String],
     val defaultTokenField: String,
@@ -24,13 +27,27 @@ class QueryCompiler(
     val incomingTokenField: String,
     val outgoingTokenField: String,
     val dependenciesVocabulary: Vocabulary,
-    val normalizeQueriesToDefaultField: Boolean
+    val normalizeQueriesToDefaultField: Boolean,
+    val metadataTypeOverride: Map[String, String],
+    val defaultParentField: String,
 ) {
 
   val parser = new QueryParser(allTokenFields, defaultTokenField, normalizeQueriesToDefaultField)
 
   /** query parser for parent doc queries */
   val queryParser = new LuceneQueryParser("docId", new WhitespaceAnalyzer)
+
+  val parentQueryParser = new StandardQueryParser(new WhitespaceAnalyzer)
+
+  // the parent query parser needs to know which metadata fields are numeric (otherwise it assume strings)
+  // we set the configuration in core/main/resources/reference.conf and can override it from the CLI.
+  // By default we we set the type overrides in reference.conf to treat year as Integer, but if we want to treat it as
+  // string we can run: sbt -Dodinson.compiler.metadataTypeOverride.year=String  ";project backend;run"
+  val numericConfig = new PointsConfig(NumberFormat.getNumberInstance(Locale.ENGLISH), classOf[java.lang.Integer])
+  metadataTypeOverride.foreach {
+    case(fieldName, "Integer") => parentQueryParser.setPointsConfigMap(Map(fieldName -> numericConfig).asJava)
+    case _ =>
+  }
 
   private var state: Option[State] = None
 
@@ -42,6 +59,10 @@ class QueryCompiler(
     val ast = parser.parseQuery(pattern)
     val query = mkOdinsonQuery(ast)
     query.getOrElse(new FailQuery(defaultTokenField))
+  }
+
+  def compileParentQuery(query: String): Query = {
+    parentQueryParser.parse(query, defaultParentField)
   }
 
   def mkFilterQuery(query:Query, parentQuery: Query): Query = {
@@ -61,7 +82,7 @@ class QueryCompiler(
 
   def mkQuery(pattern: String, parentPattern: String): OdinsonQuery = {
     val query = compile(pattern)
-    val parentQuery = queryParser.parse(parentPattern)
+    val parentQuery = parentQueryParser.parse(parentPattern, defaultParentField)
     mkQuery(query, parentQuery)
   }
 
@@ -71,7 +92,7 @@ class QueryCompiler(
   }
 
   def mkQuery(query: OdinsonQuery, parentPattern: String): OdinsonQuery = {
-    val parentQuery = queryParser.parse(parentPattern)
+    val parentQuery = parentQueryParser.parse(parentPattern, defaultParentField)
     mkQuery(query, parentQuery)
   }
 
@@ -435,7 +456,14 @@ object QueryCompiler {
       config[String]("compiler.incomingTokenField"),
       config[String]("compiler.outgoingTokenField"),
       vocabulary,
-      config[Boolean]("compiler.normalizeQueriesToDefaultField")
+      config[Boolean]("compiler.normalizeQueriesToDefaultField"),
+
+      // Read compiler.metadataTypeOverride as Map[String, String]
+      config.getObject("compiler.metadataTypeOverride").keySet.asScala.map
+      (
+        key => key -> config.getString(s"compiler.metadataTypeOverride.$key")
+      ).toMap,
+      config[String]("compiler.defaultParentField")
     )
   }
 

@@ -1,11 +1,12 @@
 package ai.lum.odinson.extra
 
 import java.io._
+
 import scala.collection.mutable.ArrayBuffer
 import org.apache.lucene.util.BytesRef
 import org.apache.lucene.document._
 import org.apache.lucene.document.Field.Store
-import org.clulab.processors.{ Sentence, Document => ProcessorsDocument }
+import org.clulab.processors.{Sentence, Document => ProcessorsDocument}
 import org.clulab.serialization.json.JSONSerializer
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -17,7 +18,8 @@ import ai.lum.common.Serializer
 import ai.lum.labrador.DocumentMetadata
 import ai.lum.odinson.lucene.analysis._
 import ai.lum.odinson.OdinsonIndexWriter
-import scala.util.{ Failure, Success, Try }
+
+import scala.util.{Failure, Success, Try}
 
 
 object IndexDocuments extends App with LazyLogging {
@@ -79,7 +81,6 @@ object IndexDocuments extends App with LazyLogging {
       case Failure(e) =>
         logger.error(s"Failed to index ${f.getName}", e)
     }
-
   }
 
   writer.close
@@ -140,7 +141,7 @@ object IndexDocuments extends App with LazyLogging {
     val block = ArrayBuffer.empty[Document]
     for ((s, i) <- d.sentences.zipWithIndex) {
       if (s.size <= maxNumberOfTokensPerSentence) {
-        block += mkSentenceDoc(s, docId, i.toString)
+        block += mkSentenceDoc(s, docId, i.toString, metadata)
       } else {
         logger.warn(s"skipping sentence with ${s.size} tokens")
       }
@@ -149,29 +150,27 @@ object IndexDocuments extends App with LazyLogging {
     block
   }
 
-  def indexKeyValueField(parent: Document, key: String, value: JValue): Unit ={
+  def indexKeyValueField(doc: Document, key: String, value: JValue): Unit ={
+    // trailing underscore mark sentence level metadata, we remove them before indexing
+    val key_ = if (key.endsWith("_")) key.dropRight(1) else key
     value match {
       case JString(s) => {
-        parent.add(new TextField(key, s, Store.YES))
+        doc.add(new TextField(key_, s, Store.NO))
       }
       case JLong(l) => {
-        parent.add(new LongPoint(key, l))
-        parent.add(new StoredField(key, l))
+        doc.add(new LongPoint(key_, l))
       }
       case JInt(i) => { // i is BigInteger, we truncate to int.
-        parent.add(new IntPoint(key, i.toInt))
-        parent.add(new StoredField(key, i.toInt))
+        doc.add(new IntPoint(key_, i.toInt))
       }
       case JDouble(d) => {
-        parent.add(new DoublePoint(key, d))
-        parent.add(new StoredField(key, d))
+        doc.add(new DoublePoint(key_, d))
       }
       case JDecimal(f) => { // d is BigDecimal, we truncate to float.
-        parent.add(new FloatPoint(key, f.toFloat))
-        parent.add(new StoredField(key, f.toFloat))
+        doc.add(new FloatPoint(key_, f.toFloat))
       }
       case JBool(b) => {
-        parent.add(new TextField(key, b.toString, Store.YES))
+        doc.add(new TextField(key_, b.toString, Store.NO))
       }
       case _ => {
         logger.warn("Field skipped (type not supported): " + value.toString)
@@ -192,16 +191,7 @@ object IndexDocuments extends App with LazyLogging {
           if (field._1 == "type" || field._1 == "docId") {
             logger.warn("\"type\" and \"docId\" are reserved fields and will be ignored. Use differently named fields if needed.")
           } else {
-            field._2 match {
-              case JArray(values) => {
-                for (elem <- values) {
-                  indexKeyValueField(parent, field._1, elem)
-                }
-              }
-              case _ => {
-                indexKeyValueField(parent, field._1, field._2)
-              }
-            }
+            indexMetadataField(parent, field)
           }
         }
       }
@@ -214,8 +204,50 @@ object IndexDocuments extends App with LazyLogging {
     parent
   }
 
-  def mkSentenceDoc(s: Sentence, docId: String, sentId: String): Document = {
+  def indexMetadataField(doc: Document, field: JField): Unit = {
+      field._2 match {
+        case JArray(values) => {
+          for (elem <- values) {
+            indexKeyValueField(doc, field._1, elem)
+          }
+        }
+        case _ => {
+          indexKeyValueField(doc, field._1, field._2)
+        }
+      }
+  }
+
+  /**
+    * Adds metadata to a sentence doc based on the metadata of the parent document
+    *
+    * the metadata is added as a json object string which contains the parent metadata fields which end with "_"
+    * @param sentDoc the lucene sentence doc to which we want to add metadata
+    * @param metadata the json metadata taken from the parent doc
+    */
+  def addSentenceMetadata(sentDoc: Document, metadata: JValue): Unit = {
+    val sentenceMetadata = metadata match {
+      case JObject(fields) => {
+        JObject(fields.filter(_._1.endsWith("_")).map(f => JField(f._1.dropRight(1), f._2)))
+      }
+      case _ => JNothing
+
+    }
+    sentenceMetadata match {
+      case JObject(fields) => {
+        implicit val formats = org.json4s.DefaultFormats
+        sentDoc.add(new StringField("md-json", compact(render(sentenceMetadata)), Store.YES))
+      }
+      case JNothing =>
+      case _ => {
+        logger.warn("Metadata skipped at sentence level (bad format: not an object)")
+      }
+    }
+  }
+
+  def mkSentenceDoc(s: Sentence, docId: String, sentId: String, metadata: JValue): Document = {
     val sent = new Document
+    addSentenceMetadata(sent, metadata)
+
     sent.add(new StoredField(documentIdField, docId))
     sent.add(new StoredField(sentenceIdField, sentId))
     sent.add(new NumericDocValuesField(sentenceLengthField, s.size.toLong))
