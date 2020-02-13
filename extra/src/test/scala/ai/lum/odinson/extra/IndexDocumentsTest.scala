@@ -20,7 +20,7 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
   "mkParentDoc" should "return a document with simple metadata fields" in  {
     val parentDoc = mkParentDoc("001", JObject(List(
       ("author", JString("John")),
-      ("title", JString("Lucene tips and tricks")),
+      ("title_", JString("Lucene tips and tricks")),
       ("yearlong", JLong(1981)),
       ("yearint", JInt(1981)),
       ("costdouble", JDouble(30.4)),
@@ -63,7 +63,7 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
       )))
 
     // Make sure that we index only metadata fields that end with "_"
-    sentenceDoc.getField("md-json").stringValue shouldBe "{\"title_\":\"Lucene tips and tricks\"}"
+    sentenceDoc.getField("md-json").stringValue shouldBe "{\"title\":\"Lucene tips and tricks\"}"
   }
   "addSentenceMetadata" should "return a document with no metadata field" in {
 

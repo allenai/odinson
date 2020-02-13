@@ -1,11 +1,12 @@
 package ai.lum.odinson.extra
 
 import java.io._
+
 import scala.collection.mutable.ArrayBuffer
 import org.apache.lucene.util.BytesRef
 import org.apache.lucene.document._
 import org.apache.lucene.document.Field.Store
-import org.clulab.processors.{ Sentence, Document => ProcessorsDocument }
+import org.clulab.processors.{Sentence, Document => ProcessorsDocument}
 import org.clulab.serialization.json.JSONSerializer
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -17,7 +18,8 @@ import ai.lum.common.Serializer
 import ai.lum.labrador.DocumentMetadata
 import ai.lum.odinson.lucene.analysis._
 import ai.lum.odinson.OdinsonIndexWriter
-import scala.util.{ Failure, Success, Try }
+
+import scala.util.{Failure, Success, Try}
 
 
 object IndexDocuments extends App with LazyLogging {
@@ -79,7 +81,6 @@ object IndexDocuments extends App with LazyLogging {
       case Failure(e) =>
         logger.error(s"Failed to index ${f.getName}", e)
     }
-
   }
 
   writer.close
@@ -150,24 +151,26 @@ object IndexDocuments extends App with LazyLogging {
   }
 
   def indexKeyValueField(doc: Document, key: String, value: JValue): Unit ={
+    // trailing underscore mark sentence level metadata, we remove them before indexing
+    val key_ = if (key.endsWith("_")) key.dropRight(1) else key
     value match {
       case JString(s) => {
-        doc.add(new TextField(key, s, Store.NO))
+        doc.add(new TextField(key_, s, Store.NO))
       }
       case JLong(l) => {
-        doc.add(new LongPoint(key, l))
+        doc.add(new LongPoint(key_, l))
       }
       case JInt(i) => { // i is BigInteger, we truncate to int.
-        doc.add(new IntPoint(key, i.toInt))
+        doc.add(new IntPoint(key_, i.toInt))
       }
       case JDouble(d) => {
-        doc.add(new DoublePoint(key, d))
+        doc.add(new DoublePoint(key_, d))
       }
       case JDecimal(f) => { // d is BigDecimal, we truncate to float.
-        doc.add(new FloatPoint(key, f.toFloat))
+        doc.add(new FloatPoint(key_, f.toFloat))
       }
       case JBool(b) => {
-        doc.add(new TextField(key, b.toString, Store.NO))
+        doc.add(new TextField(key_, b.toString, Store.NO))
       }
       case _ => {
         logger.warn("Field skipped (type not supported): " + value.toString)
@@ -224,7 +227,7 @@ object IndexDocuments extends App with LazyLogging {
   def addSentenceMetadata(sentDoc: Document, metadata: JValue): Unit = {
     val sentenceMetadata = metadata match {
       case JObject(fields) => {
-        JObject(fields.filter(_._1.endsWith("_")))
+        JObject(fields.filter(_._1.endsWith("_")).map(f => JField(f._1.dropRight(1), f._2)))
       }
       case _ => JNothing
 
