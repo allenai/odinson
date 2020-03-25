@@ -72,7 +72,7 @@ object IndexDocuments extends App with LazyLogging {
   documentFiles.foreach{ f =>
     Try {
       deserializeDocs(f).foreach(r => {
-        val block = mkDocumentBlock(r._1, r._2)
+        val block = mkDocumentBlock(r._1, r._2, r._3)
         writer.addDocuments(block)
       })
     } match {
@@ -88,14 +88,15 @@ object IndexDocuments extends App with LazyLogging {
   // fin
 
 
-  def deserializeDocs(f: File): Seq[(ProcessorsDocument, JValue)] = f.getName.toLowerCase match {
+  def deserializeDocs(f: File): Seq[(ProcessorsDocument, JValue, Array[JValue])] = f.getName.toLowerCase match {
     case jsonl if jsonl.endsWith(".jsonl") =>
       val source = scala.io.Source.fromFile(f)
       val docs = source.getLines.map(l => {
         val jast = parse(l)
-        val metadata = jast \ "metadata"
+        val docMetadata = jast \ "metadata"
+        val sentsMetadata = (jast \ "sentences").asInstanceOf[JArray].arr.map(sjson => sjson \ "metadata").toArray
         val doc = JSONSerializer.toDocument(jast)
-        (doc, metadata)
+        (doc, docMetadata, sentsMetadata)
       }).toList
       source.close()
       docs
@@ -106,8 +107,9 @@ object IndexDocuments extends App with LazyLogging {
 
       source.close()
       val doc = JSONSerializer.toDocument(docJson)
-      val metadata = docJson \ "metadata"
-      List((doc, metadata))
+      val docMetadata = docJson \ "metadata"
+      val sentsMetadata = (docJson \ "sentences").asInstanceOf[JArray].arr.map(sjson => sjson \ "metadata").toArray
+      List((doc, docMetadata, sentsMetadata))
     case ser if ser.endsWith(".ser") =>
       val doc = Serializer.deserialize[ProcessorsDocument](f)
       val md: Option[DocumentMetadata] = {
@@ -116,15 +118,16 @@ object IndexDocuments extends App with LazyLogging {
           Some(Serializer.deserialize[DocumentMetadata](mdFile))
         } else None
       }
-      List((doc, JNothing))
+      List((doc, JNothing, doc.sentences.map(_ => JNothing).toArray))
       // NOTE: we're assuming this is
     case gz if gz.endsWith("json.gz") =>
       val contents: String = GzipUtils.uncompress(f)
       val jast = parse(contents)
-      val metadata = jast \ "metadata"
+      val docMetadata = jast \ "metadata"
+      val sentsMetadata = (jast \ "sentences").asInstanceOf[JArray].arr.map(sjson => sjson \ "metadata").toArray
       val doc = JSONSerializer.toDocument(jast)
 
-      List((doc, metadata))
+      List((doc, docMetadata, sentsMetadata))
     case other =>
       throw new Exception(s"Cannot deserialize ${f.getName} to org.clulab.processors.Document. Unsupported extension '$other'")
   }
@@ -134,14 +137,14 @@ object IndexDocuments extends App with LazyLogging {
   }
 
   // generates a lucene document per sentence
-  def mkDocumentBlock(d: ProcessorsDocument, metadata: JValue): Seq[Document] = {
+  def mkDocumentBlock(d: ProcessorsDocument, metadata: JValue, sentsMetadata: Array[JValue]): Seq[Document] = {
     // FIXME what should we do if the document has no id?
     val docId = d.id.getOrElse(generateUUID)
 
     val block = ArrayBuffer.empty[Document]
     for ((s, i) <- d.sentences.zipWithIndex) {
       if (s.size <= maxNumberOfTokensPerSentence) {
-        block += mkSentenceDoc(s, docId, i.toString, metadata)
+        block += mkSentenceDoc(s, docId, i.toString, metadata, sentsMetadata(i))
       } else {
         logger.warn(s"skipping sentence with ${s.size} tokens")
       }
@@ -222,15 +225,15 @@ object IndexDocuments extends App with LazyLogging {
     *
     * the metadata is added as a json object string which contains the parent metadata fields which end with "_"
     * @param sentDoc the lucene sentence doc to which we want to add metadata
-    * @param metadata the json metadata taken from the parent doc
+    * @param docMetadata the json metadata taken from the parent doc
+    * @param sentMetadata the json metadata taken from the sentence object itself
     */
-  def addSentenceMetadata(sentDoc: Document, metadata: JValue): Unit = {
-    val sentenceMetadata = metadata match {
+  def addSentenceMetadata(sentDoc: Document, docMetadata: JValue, sentMetadata: JValue): Unit = {
+    val sentenceMetadata = docMetadata match {
       case JObject(fields) => {
-        JObject(fields.filter(_._1.endsWith("_")).map(f => JField(f._1.dropRight(1), f._2)))
+        JObject(fields.filter(_._1.endsWith("_")).map(f => JField(f._1.dropRight(1), f._2))).merge(sentMetadata)
       }
-      case _ => JNothing
-
+      case _ => sentMetadata
     }
     sentenceMetadata match {
       case JObject(fields) => {
@@ -244,9 +247,9 @@ object IndexDocuments extends App with LazyLogging {
     }
   }
 
-  def mkSentenceDoc(s: Sentence, docId: String, sentId: String, metadata: JValue): Document = {
+  def mkSentenceDoc(s: Sentence, docId: String, sentId: String, metadata: JValue, sentMetadata: JValue): Document = {
     val sent = new Document
-    addSentenceMetadata(sent, metadata)
+    addSentenceMetadata(sent, metadata, sentMetadata)
 
     sent.add(new StoredField(documentIdField, docId))
     sent.add(new StoredField(sentenceIdField, sentId))

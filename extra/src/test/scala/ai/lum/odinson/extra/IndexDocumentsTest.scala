@@ -49,7 +49,7 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
   }
 
 
-  "addSentenceMetadata" should "return a document with a metadata field which includes only fields with underscore" in {
+  "addSentenceMetadata" should "return a document with a metadata field which includes fields with underscore from parent and all fields from child" in {
     val sentenceDoc = new Document
     addSentenceMetadata(sentenceDoc,
       JObject(List(
@@ -60,15 +60,42 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
         ("costdouble", JDouble(30.4)),
         ("costdecimal", JDecimal(30.4)),
         ("free", JBool(false))
+      )), JObject(List(
+        ("free", JBool(false))
       )))
 
     // Make sure that we index only metadata fields that end with "_"
-    sentenceDoc.getField("md-json").stringValue shouldBe "{\"title\":\"Lucene tips and tricks\"}"
+    sentenceDoc.getField("md-json").stringValue shouldBe "{\"title\":\"Lucene tips and tricks\",\"free\":false}"
   }
-  "addSentenceMetadata" should "return a document with no metadata field" in {
+
+  "addSentenceMetadata" should "return a document with which includes fields with underscore from parent" in {
 
     val sentenceDoc = new Document
-    addSentenceMetadata(sentenceDoc, JNothing)
+    addSentenceMetadata(sentenceDoc, JObject(List(
+      ("author", JString("John")),
+      ("title_", JString("Lucene tips and tricks")),
+      ("yearlong", JLong(1981)),
+      ("yearint", JInt(1981)),
+      ("costdouble", JDouble(30.4)),
+      ("costdecimal", JDecimal(30.4)),
+      ("free", JBool(false))
+    )), JNothing)
+    sentenceDoc.getField("md-json").stringValue shouldBe "{\"title\":\"Lucene tips and tricks\"}"
+  }
+
+  "addSentenceMetadata" should "return a document with the fields from the child" in {
+
+    val sentenceDoc = new Document
+    addSentenceMetadata(sentenceDoc, JNothing, JObject(List(
+      ("free", JBool(false))
+    )))
+    sentenceDoc.getField("md-json").stringValue shouldBe "{\"free\":false}"
+  }
+
+  "addSentenceMetadata" should "return a document without a metadata field" in {
+
+    val sentenceDoc = new Document
+    addSentenceMetadata(sentenceDoc, JNothing, JNothing)
     sentenceDoc.getField("md-json") shouldBe null
   }
 
