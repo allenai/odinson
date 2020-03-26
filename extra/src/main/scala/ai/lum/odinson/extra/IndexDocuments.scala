@@ -158,7 +158,9 @@ object IndexDocuments extends App with LazyLogging {
     val key_ = if (key.endsWith("_")) key.dropRight(1) else key
     value match {
       case JString(s) => {
+        // We're indexing all textual parent metadata both with lower case and with original case.
         doc.add(new TextField(key_, s.toLowerCase, Store.NO))
+        doc.add(new TextField(key_ + "_", s, Store.NO))
       }
       case JLong(l) => {
         doc.add(new LongPoint(key_, l))
