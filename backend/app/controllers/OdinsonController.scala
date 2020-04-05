@@ -242,6 +242,27 @@ class OdinsonController @Inject()(system: ActorSystem, cc: ControllerComponents)
     }(odinsonContext)
   }
 
+
+  def health() = Action.async{
+    Future {
+      Status(200)
+    }(odinsonContext)
+  }
+
+  def info() = Action.async {
+    Future {
+      val envMap = System.getenv()
+      val json = if (envMap.containsKey("GIT_SHA")) {
+        Json.toJson(Json.obj("sha" -> System.getenv("GIT_SHA")))
+      } else {
+        Json.toJson(Json.obj())
+      }
+      json.format(Option(true))
+      Status(200)(json)
+    }(odinsonContext)
+  }
+
+
   val jsonBuildInfo: JsValue = Json.obj(
     "name" -> BuildInfo.name,
     "version" -> BuildInfo.version,
