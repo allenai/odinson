@@ -32,3 +32,7 @@ GET     /api/dependencies-vocabulary    controllers.OdinsonController.dependenci
 # resources
 GET     /favicon.ico                    controllers.Assets.at(file="images/favicon.ico")
 GET     /assets/*file                   controllers.Assets.at(file)
+
+# deployment helpers
+GET     /health                         controllers.OdinsonController.health
+GET     /info                           controllers.OdinsonController.info
