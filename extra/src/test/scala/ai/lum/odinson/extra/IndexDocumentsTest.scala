@@ -28,9 +28,10 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
       ("free", JBool(false))
     )))
 
-    // We expect the author field to be added without the trailiing underscore (indicating a string value field)
-    parentDoc.getField("author").stringValue shouldBe "John"
-    parentDoc.getField("title").stringValue shouldBe "Lucene tips and tricks"
+    parentDoc.getField("author").stringValue shouldBe "john"
+    parentDoc.getField("title").stringValue shouldBe "lucene tips and tricks"
+    parentDoc.getField("author_").stringValue shouldBe "John"
+    parentDoc.getField("title_").stringValue shouldBe "Lucene tips and tricks"
     parentDoc.getField("title").fieldType.tokenized shouldBe true
     parentDoc.getField("yearlong").numericValue shouldBe 1981l
     parentDoc.getField("yearint").numericValue shouldBe 1981
@@ -43,9 +44,14 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
     val parentDoc = mkParentDoc("001", JObject(List(
       ("author", JArray(List(JString("John"), JString("Jeff")))),
     )))
+
+    // make sure we index both a lower case version and the original cased version
     parentDoc.getFields("author").size shouldBe 2
-    parentDoc.getFields("author")(0).stringValue shouldBe "John"
-    parentDoc.getFields("author")(1).stringValue shouldBe "Jeff"
+    parentDoc.getFields("author")(0).stringValue shouldBe "john"
+    parentDoc.getFields("author")(1).stringValue shouldBe "jeff"
+    parentDoc.getFields("author_").size shouldBe 2
+    parentDoc.getFields("author_")(0).stringValue shouldBe "John"
+    parentDoc.getFields("author_")(1).stringValue shouldBe "Jeff"
   }
 
 
