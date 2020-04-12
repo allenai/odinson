@@ -174,7 +174,7 @@ class ExtractorEngine(
         val queryParser =
           new QueryParser("word", // default to searching over words
                           analyzer)
-
+        queryParser.setLowercaseExpandedTerms(false);
         queryParser.parse(sq)
       }
 
