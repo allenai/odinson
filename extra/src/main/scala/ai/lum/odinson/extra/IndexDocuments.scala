@@ -267,7 +267,7 @@ object IndexDocuments extends App with LazyLogging {
       sent.add(new TextField(lemmaTokenField, new OdinsonTokenStream(s.lemmas.get)))
     }
     if (s.entities.isDefined) {
-      sent.add(new TextField(entityTokenField, new OdinsonTokenStream(s.entities.get)))
+      sent.add(new TextField(entityTokenField, new OdinsonMultiTokenStream(s.entities.get.map(s => Seq(s, "x"+s)))))
     }
     if (s.chunks.isDefined) {
       sent.add(new TextField(chunkTokenField, new OdinsonTokenStream(s.chunks.get)))
