@@ -56,7 +56,7 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
 
 
   "addSentenceMetadata" should "return a document with a metadata field which includes fields with underscore from parent and all fields from child" in {
-    val sentenceDoc = new Document
+    val sentenceDoc = new processors.Document
     addSentenceMetadata(sentenceDoc,
       JObject(List(
         ("author", JString("John")),
@@ -76,7 +76,7 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
 
   "addSentenceMetadata" should "return a document with which includes fields with underscore from parent" in {
 
-    val sentenceDoc = new Document
+    val sentenceDoc = new processors.Document
     addSentenceMetadata(sentenceDoc, JObject(List(
       ("author", JString("John")),
       ("title_", JString("Lucene tips and tricks")),
@@ -91,7 +91,7 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
 
   "addSentenceMetadata" should "return a document with the fields from the child" in {
 
-    val sentenceDoc = new Document
+    val sentenceDoc = new processors.Document
     addSentenceMetadata(sentenceDoc, JNothing, JObject(List(
       ("free", JBool(false))
     )))
@@ -100,7 +100,7 @@ class IndexDocumentsTest extends FlatSpec with Matchers {
 
   "addSentenceMetadata" should "return a document without a metadata field" in {
 
-    val sentenceDoc = new Document
+    val sentenceDoc = new processors.Document
     addSentenceMetadata(sentenceDoc, JNothing, JNothing)
     sentenceDoc.getField("md-json") shouldBe null
   }

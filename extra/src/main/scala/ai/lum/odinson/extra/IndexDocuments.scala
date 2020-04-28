@@ -6,8 +6,7 @@ import scala.collection.mutable.ArrayBuffer
 import org.apache.lucene.util.BytesRef
 import org.apache.lucene.document._
 import org.apache.lucene.document.Field.Store
-import org.clulab.processors.{Sentence, Document => ProcessorsDocument}
-import org.clulab.serialization.json.JSONSerializer
+import ai.lum.odinson.extra.processors.{Sentence, Document => ProcessorsDocument}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import com.typesafe.scalalogging.LazyLogging
@@ -18,6 +17,7 @@ import ai.lum.common.Serializer
 import ai.lum.labrador.DocumentMetadata
 import ai.lum.odinson.lucene.analysis._
 import ai.lum.odinson.OdinsonIndexWriter
+import ai.lum.odinson.extra.serialization.JSONSerializer
 
 import scala.util.{Failure, Success, Try}
 
@@ -95,7 +95,7 @@ object IndexDocuments extends App with LazyLogging {
         val jast = parse(l)
         val docMetadata = jast \ "metadata"
         val sentsMetadata = (jast \ "sentences").asInstanceOf[JArray].arr.map(sjson => sjson \ "metadata").toArray
-        val doc = JSONSerializer.toDocument(jast)
+        val doc = serialization.JSONSerializer.toDocument(jast)
         (doc, docMetadata, sentsMetadata)
       }).toList
       source.close()
@@ -106,7 +106,7 @@ object IndexDocuments extends App with LazyLogging {
       val docJson = parse(source.getLines.mkString)
 
       source.close()
-      val doc = JSONSerializer.toDocument(docJson)
+      val doc = serialization.JSONSerializer.toDocument(docJson)
       val docMetadata = docJson \ "metadata"
       val sentsMetadata = (docJson \ "sentences").asInstanceOf[JArray].arr.map(sjson => sjson \ "metadata").toArray
       List((doc, docMetadata, sentsMetadata))
@@ -125,7 +125,7 @@ object IndexDocuments extends App with LazyLogging {
       val jast = parse(contents)
       val docMetadata = jast \ "metadata"
       val sentsMetadata = (jast \ "sentences").asInstanceOf[JArray].arr.map(sjson => sjson \ "metadata").toArray
-      val doc = JSONSerializer.toDocument(jast)
+      val doc = serialization.JSONSerializer.toDocument(jast)
 
       List((doc, docMetadata, sentsMetadata))
     case other =>
