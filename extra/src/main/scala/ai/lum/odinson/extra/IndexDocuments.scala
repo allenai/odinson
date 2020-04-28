@@ -6,7 +6,7 @@ import scala.collection.mutable.ArrayBuffer
 import org.apache.lucene.util.BytesRef
 import org.apache.lucene.document._
 import org.apache.lucene.document.Field.Store
-import ai.lum.odinson.extra.processors.{Sentence, Document => ProcessorsDocument}
+import ai.lum.odinson.extra.processors.{Entity, Sentence, Document => ProcessorsDocument}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import com.typesafe.scalalogging.LazyLogging
@@ -249,6 +249,25 @@ object IndexDocuments extends App with LazyLogging {
     }
   }
 
+  def toMultiTokenStream(ents: Array[Entity], sentLen: Int): Seq[Seq[String]] = {
+
+    val out = ArrayBuffer.fill(sentLen)(ArrayBuffer[String]())
+    for (ent <- ents) {
+      for (i <- ent.first to ent.last) {
+        out(i) += ent.label
+      }
+    }
+
+    (0 until sentLen).foreach(i => {
+      if (out(i).isEmpty) {
+        out(i) += "O"
+      }
+    })
+    out
+
+
+  }
+
   def mkSentenceDoc(s: Sentence, docId: String, sentId: String, metadata: JValue, sentMetadata: JValue): Document = {
     val sent = new Document
     addSentenceMetadata(sent, metadata, sentMetadata)
@@ -266,8 +285,11 @@ object IndexDocuments extends App with LazyLogging {
     if (s.lemmas.isDefined) {
       sent.add(new TextField(lemmaTokenField, new OdinsonTokenStream(s.lemmas.get)))
     }
-    if (s.entities.isDefined) {
-      sent.add(new TextField(entityTokenField, new OdinsonMultiTokenStream(s.entities.get.map(s => Seq(s, "x"+s)))))
+    if (s.entities.isDefined && !s.overlappingEntities.isDefined) {  /// backward compatibility
+      sent.add(new TextField(entityTokenField, new OdinsonTokenStream(s.entities.get)))
+    }
+    if (s.overlappingEntities.isDefined) {
+      sent.add(new TextField(entityTokenField, new OdinsonMultiTokenStream(toMultiTokenStream(s.overlappingEntities.get, s.words.length))))
     }
     if (s.chunks.isDefined) {
       sent.add(new TextField(chunkTokenField, new OdinsonTokenStream(s.chunks.get)))

@@ -34,6 +34,8 @@ class Sentence(
   /** NE labels */
   var entities: Option[Array[String]] = None
   /** Normalized values of named/numeric entities, such as dates */
+  var overlappingEntities: Option[Array[Entity]] = None
+  /** Normalized values of named/numeric entities, such as dates */
   var norms: Option[Array[String]] = None
   /** Shallow parsing labels */
   var chunks: Option[Array[String]] = None

@@ -2,10 +2,10 @@ package ai.lum.odinson.extra.serialization
 
 import java.io.File
 
-import ai.lum.odinson.extra.processors.{Document, Sentence}
+import ai.lum.odinson.extra.processors.{Document, Entity, Sentence}
 import ai.lum.odinson.extra.struct.{DirectedGraph, GraphMap}
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.{DefaultFormats, JArray, JString, JNothing, JValue}
+import org.json4s.{DefaultFormats, JArray, JNothing, JString, JValue}
 
 /** JSON serialization utilities */
 object JSONSerializer {
@@ -40,6 +40,11 @@ object JSONSerializer {
       case contents => Some(contents.extract[Array[String]])
     }
 
+    def getOverlappingEntities(json: JValue, k: String): Option[Array[Entity]] = json \ k match {
+      case JNothing => None
+      case contents => Some(contents.extract[Array[Entity]])
+    }
+
     val s = json.extract[Sentence]
     // build dependencies
     val graphs = (json \ "graphs").extract[Map[String, DirectedGraph[String]]]
@@ -48,6 +53,7 @@ object JSONSerializer {
     s.tags = getLabels(json, "tags")
     s.lemmas = getLabels(json, "lemmas")
     s.entities = getLabels(json, "entities")
+    s.overlappingEntities = getOverlappingEntities(json, "overlappingEntities")
     s.norms = getLabels(json, "norms")
     s.chunks = getLabels(json, "chunks")
     s

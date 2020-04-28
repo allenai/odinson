@@ -1,6 +1,6 @@
 package ai.lum.odinson.extra
 
-import ai.lum.odinson.extra.processors.{Document, Sentence}
+import ai.lum.odinson.extra.processors.{Document, Entity, Sentence}
 import ai.lum.odinson.extra.struct.{DirectedGraph, Edge, GraphMap}
 import org.json4s._
 import org.json4s.JsonDSL._
@@ -65,10 +65,26 @@ package object serialization {
   }
 
 
+  /** For Entity */
+  implicit class EntityOps(ent: Entity) extends JSONSerialization {
+
+    def jsonAST: JValue = {
+      ("first" -> ent.first) ~
+        ("last" -> ent.last) ~
+        ("label" -> ent.label) ~
+        ("priority" -> ent.priority)
+    }
+  }
+
   /** For Sentence */
   implicit class SentenceOps(s: Sentence) extends JSONSerialization {
 
-    def jsonAST: JValue = {
+    def jsonAST: JValue =
+      val overlappingEntitiesJSON = s.overlappingEntities match {
+        case Some(oe) => JArray(oe.map(_.jsonAST).toList)
+        case None => JNothing
+      }
+    {
       ("words" -> s.words.toList) ~
         ("startOffsets" -> s.startOffsets.toList) ~
         ("endOffsets" -> s.endOffsets.toList) ~
@@ -76,6 +92,7 @@ package object serialization {
         ("tags" -> s.tags.toSerializableJSON) ~
         ("lemmas" -> s.lemmas.toSerializableJSON) ~
         ("entities" -> s.entities.toSerializableJSON) ~
+        ("overlappingEntities" -> overlappingEntitiesJSON) ~
         ("norms" -> s.norms.toSerializableJSON) ~
         ("chunks" -> s.chunks.toSerializableJSON) ~
         ("graphs" -> s.graphs.jsonAST)
