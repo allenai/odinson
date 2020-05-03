@@ -79,25 +79,27 @@ package object serialization {
   /** For Sentence */
   implicit class SentenceOps(s: Sentence) extends JSONSerialization {
 
-    def jsonAST: JValue =
+    def jsonAST: JValue = {
       val overlappingEntitiesJSON = s.overlappingEntities match {
         case Some(oe) => JArray(oe.map(_.jsonAST).toList)
         case None => JNothing
       }
-    {
-      ("words" -> s.words.toList) ~
-        ("startOffsets" -> s.startOffsets.toList) ~
-        ("endOffsets" -> s.endOffsets.toList) ~
-        ("raw" -> s.raw.toList) ~
-        ("tags" -> s.tags.toSerializableJSON) ~
-        ("lemmas" -> s.lemmas.toSerializableJSON) ~
-        ("entities" -> s.entities.toSerializableJSON) ~
-        ("overlappingEntities" -> overlappingEntitiesJSON) ~
-        ("norms" -> s.norms.toSerializableJSON) ~
-        ("chunks" -> s.chunks.toSerializableJSON) ~
-        ("graphs" -> s.graphs.jsonAST)
-      // TODO: handle tree
-      //("syntactic-tree") -> syntacticTree)
+
+      {
+        ("words" -> s.words.toList) ~
+          ("startOffsets" -> s.startOffsets.toList) ~
+          ("endOffsets" -> s.endOffsets.toList) ~
+          ("raw" -> s.raw.toList) ~
+          ("tags" -> s.tags.toSerializableJSON) ~
+          ("lemmas" -> s.lemmas.toSerializableJSON) ~
+          ("entities" -> s.entities.toSerializableJSON) ~
+          ("overlappingEntities" -> overlappingEntitiesJSON) ~
+          ("norms" -> s.norms.toSerializableJSON) ~
+          ("chunks" -> s.chunks.toSerializableJSON) ~
+          ("graphs" -> s.graphs.jsonAST)
+        // TODO: handle tree
+        //("syntactic-tree") -> syntacticTree)
+      }
     }
 
   }
