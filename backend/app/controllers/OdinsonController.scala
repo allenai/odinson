@@ -112,8 +112,10 @@ class OdinsonController @Inject()(system: ActorSystem, cc: ControllerComponents)
   def sentenceJsonForSentId(odinsonDocId: Int, pretty: Option[Boolean]) =
     Action.async {
       Future {
-        val json = mkAbridgedSentence(odinsonDocId)
-        json.format(pretty)
+        val json = mkAbridgedSentence(odinsonDocId).asInstanceOf[JsObject]
+        val metadata = JsObject(Seq("metadata" -> mkSentenceMetadata(odinsonDocId)))
+        val combined = json.deepMerge(metadata)
+        combined.format(pretty)
       }(odinsonContext)
     }
 
